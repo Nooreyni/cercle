@@ -88,7 +88,10 @@ import { Assistant, CLAUDE_MODELS, LOCAL_PRESETS } from "./ai.js";
     try { people = JSON.parse(raw) || []; } catch (e) { people = []; }
   }
   async function boot() {
-    loadLocal(); mode = "local"; render(); paintAI();
+    loadLocal(); mode = "local";
+    const h0 = location.hash.slice(1);
+    showTab(TABS.includes(h0) ? h0 : (ls("cercle-tab") || "today"), true);
+    render(); paintAI();
     renderSources(); Sync.start(); nativeStart(); installStart(); joinFromLink();
   }
 
@@ -99,14 +102,39 @@ import { Assistant, CLAUDE_MODELS, LOCAL_PRESETS } from "./ai.js";
     renderCards(all); renderSide(all); renderGarden(all);
     const demo = people.filter(p => p.demo).length;
     $("#demoBanner").hidden = !demo; $("#demoCount").textContent = demo;
+    renderSummary(all);
+  }
+  // One line under the title that answers "what should I do today?"
+  const fmtDay = new Intl.DateTimeFormat("fr-FR", { weekday: "long", day: "numeric", month: "long" });
+  function renderSummary(all) {
+    $("#todayLabel").textContent = fmtDay.format(new Date());
+    if (mode === "loading") return;
+    if (!all.length) { $("#summary").textContent = "Ajoute les personnes qui comptent pour toi : Cercle te dira quand reprendre contact."; return; }
+    const week = pickWeek(all), parts = [];
+    parts.push(week.length ? week.length + " personne" + (week.length > 1 ? "s" : "") + " à recontacter cette semaine" : "Tout le monde va bien cette semaine");
+    const bd = all.filter(x => x.h.bday && x.h.bday.in <= 7).sort((a, b) => a.h.bday.in - b.h.bday.in)[0];
+    if (bd) parts.push("anniversaire de " + bd.p.name + " " + inDays(bd.h.bday.in));
+    $("#summary").textContent = parts.join(" · ") + ".";
   }
 
-  // Family and close friends get a small priority boost when several people are overdue.
+  // ---------- tabs (Aujourd'hui, Jardin, Réglages) ----------
+  const TABS = ["today", "jardin", "reglages"];
+  let tab = "today";
+  function showTab(t, keepScroll) {
+    tab = TABS.includes(t) ? t : "today"; ls("cercle-tab", tab);
+    document.documentElement.dataset.tab = tab;
+    $$(".view").forEach(v => { v.hidden = v.dataset.view !== tab; });
+    $$("#tabs [data-tab]").forEach(b => b.setAttribute("aria-current", b.dataset.tab === tab ? "page" : "false"));
+    try { if (!/^#k=/.test(location.hash)) history.replaceState(null, "", location.pathname + location.search + (tab === "today" ? "" : "#" + tab)); } catch (e) { /* sandboxed */ }
+    if (!keepScroll) window.scrollTo(0, 0);
+  }
+  $("#tabs").addEventListener("click", e => { const b = e.target.closest("[data-tab]"); if (b) showTab(b.dataset.tab); });
+
   function renderCards(all) {
     const el = $("#cards");
     if (mode === "loading") { el.innerHTML = `<div class="calm"><p class="muted">Chargement de ton cercle…</p></div>`; return; }
     if (!all.length) {
-      el.innerHTML = `<div class="calm"><h3>Commence par trois personnes</h3><p class="muted">Pense à quelqu'un de ta famille, un ami proche et une personne que tu as un peu perdue de vue. Cercle te dira ensuite quand reprendre contact.</p><div><button class="primary" type="button" data-act="add">+ Ajouter quelqu'un</button></div></div>`;
+      el.innerHTML = `<div class="calm"><h3>Commence par trois personnes</h3><p class="muted">Pense à quelqu'un de ta famille, un ami proche et une personne que tu as un peu perdue de vue. Cercle te dira ensuite quand reprendre contact.</p><div class="actions"><button class="primary" type="button" data-act="add">+ Ajouter quelqu'un</button><button type="button" data-act="contacts">Importer mes contacts</button></div></div>`;
       $("#weekCount").textContent = ""; return;
     }
     const list = pickWeek(all);
@@ -177,7 +205,7 @@ import { Assistant, CLAUDE_MODELS, LOCAL_PRESETS } from "./ai.js";
       html += `<div class="circle-group"><span class="label">${esc(CIRCLES[k])} · ${list.length}</span><div class="garden">` +
         list.map(({ p, h }) => `<button class="person" type="button" data-act="open" data-id="${esc(p.id)}" aria-label="${esc(p.name)}, ${STATE[h.state].label}">
           ${plant(h.state, 60)}<span class="nm">${esc(p.name)}</span><span class="st">${h.rdv ? "RDV le " + esc(fmtShort.format(h.rdv)) : h.since == null ? "jamais noté" : esc(ago(h.since))}</span></button>`).join("") +
-        `<button class="person add" type="button" data-act="add" data-circle="${k}"><span>+</span>Ajouter</button></div></div>`;
+        (filter !== "all" ? `<button class="person add" type="button" data-act="add" data-circle="${k}"><span>+</span>Ajouter</button>` : "") + `</div></div>`;
     });
     if (!html) html = `<div class="garden"><button class="person add" type="button" data-act="add" data-circle="${filter === "all" ? "amis" : filter}"><span>+</span>Ajouter quelqu'un</button></div>`;
     el.innerHTML = html;
@@ -185,7 +213,8 @@ import { Assistant, CLAUDE_MODELS, LOCAL_PRESETS } from "./ai.js";
 
   // ---------- overlays ----------
   let lastFocus = null, tH;
-  function open(id) { lastFocus = document.activeElement; $(id).hidden = false; const f = $(id + " input, " + id + " button.primary"); if (f) setTimeout(() => f.focus(), 40); }
+  // Focus the sheet itself: focusing a field would pop the keyboard or a date picker on phones.
+  function open(id) { lastFocus = document.activeElement; $(id).hidden = false; const sh = $(id + " .sheet"); if (sh) { sh.scrollTop = 0; setTimeout(() => sh.focus({ preventScroll: true }), 40); } }
   function close(o) { o.hidden = true; if (lastFocus && lastFocus.focus) lastFocus.focus(); }
   $$(".ov").forEach(o => o.addEventListener("click", e => { if (e.target === o || e.target.closest("[data-close]")) close(o); }));
   document.addEventListener("keydown", e => { if (e.key === "Escape") $$(".ov").forEach(o => { if (!o.hidden) close(o); }); });
@@ -256,6 +285,9 @@ import { Assistant, CLAUDE_MODELS, LOCAL_PRESETS } from "./ai.js";
       <button class="ai-btn" type="button" data-act="aiMsg" data-id="${esc(p.id)}">Idée de message</button>
       <button class="ai-btn" type="button" data-act="aiPrep" data-id="${esc(p.id)}">Préparer l'appel</button>` : "";
     $("#pQuick").hidden = !curP;
+    $("#ovPerson .sheet").classList.toggle("new", !curP);
+    $("#pEdit").open = !curP;
+    $("#pSrcWrap").hidden = !curP;
     const f = $("#pForm").elements;
     f.name.value = p.name || ""; f.circle.value = p.circle || "amis"; f.freq.value = String(p.freq || 30);
     f.bdDay.value = p.bdDay || ""; f.bdMonth.value = p.bdMonth || ""; f.bdYear.value = p.bdYear || "";
@@ -266,7 +298,7 @@ import { Assistant, CLAUDE_MODELS, LOCAL_PRESETS } from "./ai.js";
     const log = (p.log || []).slice().sort((a, b) => (b.d || "").localeCompare(a.d || ""));
     $("#pHistWrap").hidden = !log.length;
     $("#pHist").innerHTML = log.slice(0, 30).map(l => { const d = parseD(l.d); return `<li><span class="meta">${d ? d.getDate() + " " + MONTHS[d.getMonth()] + " " + d.getFullYear() : ""} · ${esc(TYPES[l.t] || l.t || "")}</span>${l.n ? `<span>${esc(l.n)}</span>` : ""}</li>`; }).join("");
-    delArmed = false; $("#btnPDelete").textContent = "Retirer de mon cercle"; $("#btnPDelete").hidden = !curP;
+    delArmed = false; $("#btnPDelete").textContent = "Retirer"; $("#btnPDelete").hidden = !curP;
     $("#pErr").hidden = true;
     open("#ovPerson");
   }
@@ -293,7 +325,7 @@ import { Assistant, CLAUDE_MODELS, LOCAL_PRESETS } from "./ai.js";
   });
   $("#btnPDelete").addEventListener("click", async () => {
     if (!curP) return;
-    if (!delArmed) { delArmed = true; $("#btnPDelete").textContent = "Confirmer : retirer " + curP.name; return; }
+    if (!delArmed) { delArmed = true; $("#btnPDelete").textContent = "Vraiment retirer ?"; return; }
     try { await remove(curP.id); close($("#ovPerson")); toast(curP.name + " retiré(e)"); } catch (e) { failed(e); }
   });
 
@@ -305,6 +337,7 @@ import { Assistant, CLAUDE_MODELS, LOCAL_PRESETS } from "./ai.js";
     else if (a === "open") openPerson(id);
     else if (a === "log") { if (!$("#ovPerson").hidden) $("#ovPerson").hidden = true; openLog(id); }
     else if (a === "snooze") snooze(id);
+    else if (a === "contacts") $("#btnContacts").click();
     else if (a === "aiMsg") aiMessages(id);
     else if (a === "aiPrep") aiPrep(id);
   });
@@ -399,7 +432,7 @@ import { Assistant, CLAUDE_MODELS, LOCAL_PRESETS } from "./ai.js";
       rows.push(`<div class="srcline"><b>${esc(lab.charAt(0).toUpperCase() + lab.slice(1))}</b><span class="muted">${esc(txt)}</span></div>`);
     });
     const hasIds = (p.emails || []).length || (p.phones || []).length;
-    $("#pSrc").innerHTML = rows.join("") || `<p class="muted small">${hasIds ? "Rien de synchronisé pour l'instant." : "Ajoute un téléphone ou un e-mail ci-dessus pour que Cercle reconnaisse vos échanges automatiquement."}</p>`;
+    $("#pSrc").innerHTML = rows.join("") || `<p class="muted small">${hasIds ? "Rien de synchronisé pour l'instant." : "Ajoute son téléphone ou son e-mail dans « Modifier la fiche » pour que Cercle reconnaisse vos échanges automatiquement."}</p>`;
   }
 
   // ---------- contacts import (.vcf / Google CSV) ----------
@@ -1106,7 +1139,7 @@ import { Assistant, CLAUDE_MODELS, LOCAL_PRESETS } from "./ai.js";
     if (APP) {
       APP.addListener("backButton", () => {
         const openOv = $$(".ov").filter(o => !o.hidden);
-        if (openOv.length) close(openOv[openOv.length - 1]); else APP.minimizeApp();
+        if (openOv.length) close(openOv[openOv.length - 1]); else if (tab !== "today") showTab("today"); else APP.minimizeApp();
       });
       APP.addListener("resume", () => { render(); nativeSync(false); Sync.schedule(100); });
     }
