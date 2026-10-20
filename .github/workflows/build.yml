@@ -1,0 +1,80 @@
+name: Publier Cercle
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Dépendances
+        run: npm ci
+
+      - name: Fichiers web (polices, librairies, numéro de version)
+        run: |
+          npm run vendor
+          sed -i "s/__BUILD__/${GITHUB_RUN_NUMBER}/" www/sw.js
+
+      - name: Publier la PWA sur GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./www
+          force_orphan: true
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Compiler l'APK Android
+        run: |
+          set -o pipefail
+          npx cap sync android
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon --stacktrace 2>&1 | tee ../build.log
+          cp app/build/outputs/apk/release/app-release.apk ../cercle.apk
+
+      - name: Mettre l'APK en téléchargement
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.${{ github.run_number }}
+          name: Cercle 1.0.${{ github.run_number }}
+          make_latest: true
+          files: cercle.apk
+          body: |
+            Télécharge **cercle.apk** sur ton téléphone Android et ouvre-le pour l'installer.
+            Chaque nouvelle version s'installe par-dessus la précédente : tes données sont conservées.
+
+      - name: Garder le journal de compilation en cas d'échec
+        if: failure()
+        run: |
+          [ -f build.log ] || echo "pas de journal Gradle (échec avant la compilation)" > build.log
+          cp build.log /tmp/build.log
+          git config user.name "cercle-ci"
+          git config user.email "cercle-ci@users.noreply.github.com"
+          git checkout --orphan ci-logs
+          git rm -rf . -q
+          tail -n 400 /tmp/build.log > build.log
+          git add build.log
+          git commit -q -m "Journal de compilation ${GITHUB_RUN_NUMBER}"
+          git push -f origin ci-logs
