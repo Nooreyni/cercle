@@ -206,6 +206,19 @@ details.how ol { margin:8px 0 2px; padding-left:20px; display:grid; gap:6px }
 .link-box { font-size:12.5px; color:var(--muted); word-break:break-all; background:var(--soft); border-radius:10px; padding:8px 10px }
 a.btn { text-decoration:none; padding:6px 12px; font-size:13px }
 .native .web-only { display:none !important }
+.ai-out { background:var(--soft); border-radius:12px; padding:12px 14px; white-space:pre-wrap; line-height:1.55 }
+.idea { border:1.5px solid var(--line); border-radius:14px; padding:12px 14px; display:grid; gap:8px }
+.idea .tone { font-size:12px; letter-spacing:.05em; text-transform:uppercase; color:var(--muted); font-weight:700 }
+.idea .row { display:flex; flex-wrap:wrap; gap:6px }
+.idea .row a, .idea .row button { padding:5px 11px; font-size:13px }
+.topics { margin:0; padding-left:20px; display:grid; gap:8px }
+.busy { color:var(--muted); display:flex; gap:10px; align-items:center }
+.busy::before { content:""; width:14px; height:14px; border-radius:50%; border:2.5px solid var(--line); border-top-color:var(--accent); animation:spin 0.9s linear infinite }
+@keyframes spin { to { transform:rotate(360deg) } }
+@media (prefers-reduced-motion: reduce) { .busy::before { animation:none } }
+.tip { margin:0; border-left:3px solid var(--pollen); padding:8px 12px; background:var(--soft); border-radius:0 10px 10px 0 }
+.tip b { display:block; font-size:12px; letter-spacing:.05em; text-transform:uppercase; color:var(--muted) }
+.ai-btn::before { content:"✦"; color:var(--pollen); font-size:13px }
 </style>
 </head>
 <body>
@@ -259,6 +272,11 @@ a.btn { text-decoration:none; padding:6px 12px; font-size:13px }
         <div><button type="button" id="btnSync">Configurer</button></div>
       </div>
       <div class="side">
+        <h3>Assistant IA</h3>
+        <p class="src-st" id="aiState">Désactivé</p>
+        <div class="actions"><button type="button" class="ai-btn" id="btnAiAsk">Demander à mon cercle</button><button type="button" class="ghost" id="btnAiCfg">Réglages</button></div>
+      </div>
+      <div class="side">
         <h3>Suivi automatique</h3>
         <ul class="src-list" id="srcList"></ul>
         <p class="muted small" id="srcNote"></p>
@@ -286,7 +304,9 @@ a.btn { text-decoration:none; padding:6px 12px; font-size:13px }
     <div class="field"><span class="lb">Comment ?</span><div class="seg" id="logType"></div></div>
     <div class="form">
       <div class="field"><label for="logDate">Quand</label><input type="date" id="logDate"></div>
-      <div class="field full"><label for="logNote">De quoi vous avez parlé</label><textarea id="logNote" rows="3" placeholder="ex. Il change de boulot en janvier, sa fille entre au CP"></textarea><small>Ça t'aidera à relancer la conversation la prochaine fois.</small></div>
+      <div class="field full"><label for="logNote">De quoi vous avez parlé</label><textarea id="logNote" rows="3" placeholder="ex. Il change de boulot en janvier, sa fille entre au CP"></textarea><small>Ça t'aidera à relancer la conversation la prochaine fois. Tu peux dicter en vrac et laisser l'IA mettre en forme.</small>
+        <div class="actions"><button type="button" class="ghost ai-btn" id="btnAiTidy">Mettre en forme avec l'IA</button></div>
+        <p class="muted small" id="aiTidyInfo" hidden></p></div>
     </div>
     <div class="field" id="logAsksWrap"><span class="lb">Tu voulais lui demander</span><ul class="asks" id="logAsks"></ul><small>Coche ce dont vous avez parlé.</small></div>
     <div class="field"><label for="logNewAsk">À lui demander la prochaine fois</label>
@@ -421,6 +441,16 @@ a.btn { text-decoration:none; padding:6px 12px; font-size:13px }
       <div class="qr" id="syQr"></div>
       <div class="link-box" id="syLink"></div>
       <div class="field"><label for="syKey">Ton code</label><div class="addrow"><input id="syKey" readonly><button id="btnSyCopy" type="button">Copier</button></div><small>Garde-le pour toi : il donne accès à ton cercle.</small></div>
+      <details class="how" id="syMcp"><summary>Brancher une IA sur ton cercle (Claude, ChatGPT…)</summary>
+        <p>Avec cette adresse, une IA peut lire ton cercle et y noter tes échanges : « qui dois-je appeler ? », « note que j'ai vu Karim, il a eu une promotion ».</p>
+        <div class="addrow"><input id="syMcpUrl" readonly aria-label="Adresse du serveur MCP"><button id="btnSyMcpCopy" type="button">Copier</button></div>
+        <ol>
+          <li><b>Claude</b> (claude.ai, appli mobile ou de bureau) : Paramètres › Connecteurs › Ajouter un connecteur personnalisé › colle l'adresse.</li>
+          <li><b>ChatGPT</b> : active le mode développeur des connecteurs, puis ajoute un serveur MCP avec cette adresse, sans authentification (les menus changent souvent : cherche « connecteur » dans les paramètres).</li>
+          <li><b>IA locale</b> (LM Studio, Claude Code, Cursor…) : voir docs/IA.md dans le dépôt pour la version qui tourne sur ta machine.</li>
+        </ol>
+        <p class="privacy">Cette adresse contient ton code secret : ne la partage qu'avec tes propres outils.</p>
+      </details>
       <div class="sheet-foot"><button class="danger" id="btnSyOff" type="button">Désactiver sur cet appareil</button><button class="primary" id="btnSyNow" type="button">Synchroniser maintenant</button></div>
     </div>
   </div>
@@ -446,10 +476,60 @@ a.btn { text-decoration:none; padding:6px 12px; font-size:13px }
   </div>
 </div>
 
+<!-- Assistant settings -->
+<div class="ov" id="ovAiCfg" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="aiCfgTitle">
+    <div class="sheet-head"><div><span class="label">Assistant</span><h2 id="aiCfgTitle">Réglages de l'IA</h2></div><button class="ghost" data-close type="button">Fermer</button></div>
+    <div class="field"><span class="lb">Moteur</span>
+      <div class="seg" id="aiProv">
+        <button type="button" data-p="off">Désactivé</button>
+        <button type="button" data-p="claude">Claude</button>
+        <button type="button" data-p="local">IA locale</button>
+        <button type="button" data-p="openai">Autre service</button>
+        <button type="button" data-p="chrome" id="aiProvChrome" hidden>IA de Chrome</button>
+      </div></div>
+    <div class="form">
+      <div class="field full" data-for="claude openai local"><label for="aiKey" id="aiKeyLabel">Clé API</label><input id="aiKey" type="password" autocomplete="off" spellcheck="false"><small id="aiKeyHint"></small></div>
+      <div class="field full" data-for="claude"><label for="aiModelClaude">Modèle</label><select id="aiModelClaude"></select></div>
+      <div class="field full" data-for="local openai"><label for="aiBase">Adresse du serveur</label><input id="aiBase" autocomplete="off" spellcheck="false" inputmode="url"><div class="seg" id="aiPresets"></div></div>
+      <div class="field full" data-for="local openai"><label for="aiModel">Nom du modèle</label><input id="aiModel" autocomplete="off" spellcheck="false" placeholder="qwen3, llama3.2, mistral-small…"></div>
+    </div>
+    <details class="how" id="aiHelp"><summary>Comment faire</summary><div id="aiHelpBody"></div></details>
+    <p class="privacy" id="aiPrivacy"></p>
+    <p class="muted small" id="aiTestOut"></p>
+    <div class="sheet-foot"><button type="button" id="btnAiTest">Tester</button><button class="primary" id="btnAiSave" type="button">Enregistrer</button></div>
+  </div>
+</div>
+
+<!-- Ask the circle -->
+<div class="ov" id="ovAsk" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="askTitle">
+    <div class="sheet-head"><div><span class="label">Assistant</span><h2 id="askTitle">Demander à mon cercle</h2></div><button class="ghost" data-close type="button">Fermer</button></div>
+    <div class="seg" id="askChips">
+      <button type="button">Qui ai-je le plus négligé ?</button>
+      <button type="button">Prépare ma semaine en 3 actions</button>
+      <button type="button">Quels anniversaires arrivent ?</button>
+    </div>
+    <textarea id="askQ" rows="3" placeholder="ex. Qui n'ai-je pas vu depuis l'été ?" aria-label="Ta question"></textarea>
+    <div class="ai-out" id="askOut" hidden></div>
+    <p class="muted small" id="askInfo"></p>
+    <div class="sheet-foot"><button class="ghost" data-close type="button">Fermer</button><button class="primary" id="btnAskGo" type="button">Demander</button></div>
+  </div>
+</div>
+
+<!-- Assistant results (message ideas, call prep) -->
+<div class="ov" id="ovAiOut" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="aoTitle">
+    <div class="sheet-head"><div><span class="label" id="aoLabel">Assistant</span><h2 id="aoTitle"></h2></div><button class="ghost" data-close type="button">Fermer</button></div>
+    <div id="aoBody" class="col"></div>
+    <div class="sheet-foot"><span class="muted small" id="aoEngine"></span><button type="button" id="btnAoAgain">Autres idées</button></div>
+  </div>
+</div>
+
 <div class="toast" id="toast" role="status" hidden></div>
 
 <script src="vendor/jszip.min.js"></script>
 <script src="vendor/qrcode.js"></script>
-<script src="app.js"></script>
+<script type="module" src="app.js"></script>
 </body>
 </html>

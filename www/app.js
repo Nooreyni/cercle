@@ -1,67 +1,27 @@
 // Cercle : garder le lien avec ses proches. Runs as a PWA and inside the Android app (Capacitor).
+// UI, storage, sync and device integrations live here; the pure relationship logic is in core.js.
+import * as Core from "./core.js";
+import { Assistant, CLAUDE_MODELS, LOCAL_PRESETS } from "./ai.js";
+
 (function () {
   "use strict";
-  const CIRCLES = { famille: "Famille", proches: "Amis proches", amis: "Amis", collegues: "Anciens collègues", autres: "Autres" };
-  const FREQS = [[7, "Chaque semaine"], [14, "Toutes les 2 semaines"], [30, "Chaque mois"], [60, "Tous les 2 mois"], [90, "Chaque trimestre"], [180, "Tous les 6 mois"], [365, "Une fois par an"]];
-  const TYPES = { appel: "Appel", message: "Message", vu: "Vu en vrai", visio: "Visio" };
-  const MONTHS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"];
-  const STATE = {
-    bloom: { label: "En pleine forme", cls: "s-bloom" }, ok: { label: "Ça va", cls: "s-ok" },
-    thirsty: { label: "À arroser", cls: "s-thirsty" }, wilted: { label: "Ça s'éloigne", cls: "s-wilted" }
-  };
-
+  const {
+    CIRCLES, FREQS, TYPES, MONTHS, STATE, SRC_LABEL, DEFAULT_FREQ,
+    today0, parseD, iso, days, freqLabel, ago, inDays, health, pickWeek, applyLog, foldSync,
+    normName, normPhone, splitList, uniq, parseBday, parseVCF, parseGoogleCSV, eventDate, eventPeople, nameKeys
+  } = Core;
+  // people-aware helpers bound to this device's list
+  const findByName = name => Core.findByName(people, name);
+  const phoneIndex = () => Core.phoneIndex(people);
+  const emailIndex = () => Core.emailIndex(people);
+  const parseWA = (text, filename) => Core.parseWA(text, filename, people);
   const $ = (s, r) => (r || document).querySelector(s);
   const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
   const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   function ls(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { return null; } }
 
   // ---------- dates ----------
-  const today0 = () => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; };
-  const parseD = s => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s || ""); return m ? new Date(+m[1], +m[2] - 1, +m[3]) : null; };
-  const iso = d => d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
   const fmtShort = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "short" });
-  const days = (a, b) => Math.round((a - b) / 864e5);
-  const freqLabel = f => (FREQS.find(x => x[0] === +f) || [0, "tous les " + f + " j"])[1].toLowerCase();
-  function ago(n) {
-    if (n === 0) return "aujourd'hui"; if (n === 1) return "hier";
-    if (n < 14) return "il y a " + n + " jours";
-    if (n < 60) return "il y a " + Math.round(n / 7) + " semaines";
-    if (n < 365) return "il y a " + Math.round(n / 30) + " mois";
-    const y = Math.floor(n / 365); return "il y a plus de " + y + " an" + (y > 1 ? "s" : "");
-  }
-  function inDays(n) { return n === 0 ? "aujourd'hui" : n === 1 ? "demain" : "dans " + n + " j"; }
-
-  // ---------- model ----------
-  const SRC_LABEL = { gmail: "Gmail", agenda: "Agenda", whatsapp: "WhatsApp", phone: "appels/SMS" };
-  // Latest past exchange across manual notes and every synced source.
-  function lastInfo(p) {
-    const t = today0(); let best = null, src = null;
-    const consider = (s, k) => { const d = parseD(s); if (d && d <= t && (!best || d > best)) { best = d; src = k; } };
-    (p.log || []).forEach(l => consider(l.d, "log"));
-    const sy = p.sync || {};
-    Object.keys(SRC_LABEL).forEach(k => { if (sy[k] && sy[k].last) consider(sy[k].last, k); });
-    if (!best && p.lastSeed) consider(p.lastSeed, "seed");
-    return { d: best, src };
-  }
-  function nextRdv(p) { const n = p.sync && p.sync.agenda && parseD(p.sync.agenda.next); return n && n >= today0() ? n : null; }
-  function nextBirthday(p) {
-    if (!p.bdMonth || !p.bdDay) return null;
-    const t = today0();
-    let d = new Date(t.getFullYear(), p.bdMonth - 1, p.bdDay);
-    if (d < t) d = new Date(t.getFullYear() + 1, p.bdMonth - 1, p.bdDay);
-    const age = p.bdYear ? d.getFullYear() - p.bdYear : null;
-    return { date: d, in: days(d, t), age };
-  }
-  function health(p) {
-    const t = today0(); const freq = Math.max(1, +p.freq || 30);
-    const li = lastInfo(p), last = li.d;
-    const since = last ? days(t, last) : null;
-    const ratio = since == null ? 1.3 : since / freq;
-    const state = ratio <= 0.5 ? "bloom" : ratio <= 1 ? "ok" : ratio <= 1.5 ? "thirsty" : "wilted";
-    const snoozed = p.snoozeUntil && parseD(p.snoozeUntil) > t;
-    return { last, src: li.src, since, ratio, state, freq, snoozed, bday: nextBirthday(p), rdv: nextRdv(p) };
-  }
-
   // ---------- plant ----------
   function plant(state, size) {
     size = size || 64;
@@ -93,7 +53,8 @@
   function lsOk() { try { localStorage.setItem("cercle-probe", "1"); return true; } catch (e) { return false; } }
   async function save(p) {
     const full = JSON.parse(JSON.stringify(p)); if (!full.id) full.id = newId();
-    full.updatedAt = new Date().toISOString();
+    // strictly newer than the previous version, so two quick edits never tie on the server
+    full.updatedAt = new Date(Math.max(Date.now(), Date.parse(full.updatedAt || 0) + 1)).toISOString();
     const i = people.findIndex(x => x.id === full.id);
     if (i >= 0) people[i] = full; else people.push(full);
     persist(); Sync.dirty(full); scheduleRender();
@@ -127,7 +88,7 @@
     try { people = JSON.parse(raw) || []; } catch (e) { people = []; }
   }
   async function boot() {
-    loadLocal(); mode = "local"; render();
+    loadLocal(); mode = "local"; render(); paintAI();
     renderSources(); Sync.start(); nativeStart(); installStart(); joinFromLink();
   }
 
@@ -141,18 +102,6 @@
   }
 
   // Family and close friends get a small priority boost when several people are overdue.
-  const CIRCLE_WEIGHT = { famille: 1.15, proches: 1.1 };
-  function pickWeek(all) {
-    const t = today0();
-    const scored = all.filter(x => !x.h.snoozed && !(x.h.rdv && days(x.h.rdv, t) <= 21)).map(x => {
-      let score = x.h.ratio * (CIRCLE_WEIGHT[x.p.circle] || 1), reason = null;
-      if (x.h.bday && x.h.bday.in <= 7) { score += 10 - x.h.bday.in; reason = "bday"; }
-      return { ...x, score, reason };
-    }).filter(x => x.reason || x.h.ratio >= 0.85);
-    scored.sort((a, b) => b.score - a.score);
-    return scored.slice(0, 4);
-  }
-
   function renderCards(all) {
     const el = $("#cards");
     if (mode === "loading") { el.innerHTML = `<div class="calm"><p class="muted">Chargement de ton cercle…</p></div>`; return; }
@@ -243,6 +192,7 @@
   function toast(m) { const t = $("#toast"); t.textContent = m; t.hidden = false; clearTimeout(tH); tH = setTimeout(() => t.hidden = true, 2800); }
 
   // ---------- log contact ----------
+  let logExtra = null;
   let logP = null, logT = "appel", newAsks = [];
   $("#logType").innerHTML = Object.entries(TYPES).map(([k, v]) => `<button type="button" data-t="${k}">${v}</button>`).join("");
   $("#logType").addEventListener("click", e => { const b = e.target.closest("[data-t]"); if (!b) return; logT = b.dataset.t; paintType(); });
@@ -253,6 +203,7 @@
     $("#logWho").innerHTML = `${plant(h.state, 44)}<div><span class="label">Prendre des nouvelles</span><h2 id="logTitle">${esc(logP.name)}</h2></div>`;
     logT = ((logP.log || [])[0] || {}).t || "appel"; paintType();
     $("#logDate").value = iso(today0()); $("#logNote").value = ""; $("#logNewAsk").value = ""; newAsks = []; paintNewAsks();
+    logExtra = null; $("#aiTidyInfo").hidden = true;
     const asks = logP.asks || [];
     $("#logAsksWrap").hidden = !asks.length;
     $("#logAsks").innerHTML = asks.map((a, i) => `<li><label><input type="checkbox" data-i="${i}"> <span>${esc(a)}</span></label></li>`).join("");
@@ -267,10 +218,15 @@
     if (!logP) return;
     const d = $("#logDate").value || iso(today0());
     const done = new Set($$("#logAsks input:checked").map(i => +i.dataset.i));
-    const p = JSON.parse(JSON.stringify(logP));
-    p.log = [{ d, t: logT, n: $("#logNote").value.trim() }].concat(p.log || []).sort((a, b) => (b.d || "").localeCompare(a.d || "")).slice(0, 80);
-    p.asks = (p.asks || []).filter((_, i) => !done.has(i)).concat(newAsks);
-    delete p.snoozeUntil;
+    const p = applyLog(logP, { d, t: logT, n: $("#logNote").value.trim(), doneAsks: Array.from(done), newAsks });
+    if (logExtra) {
+      // facts and birthday the assistant found in the dictated note
+      const known = normName(p.notes || "");
+      const facts = (logExtra.facts || []).filter(f => f && !known.includes(normName(f)));
+      if (facts.length) p.notes = (p.notes ? p.notes.trim() + "\n" : "") + facts.join("\n");
+      const bd = logExtra.birthday;
+      if (bd && bd.day >= 1 && bd.day <= 31 && bd.month >= 1 && bd.month <= 12 && !p.bdMonth) { p.bdDay = bd.day; p.bdMonth = bd.month; if (bd.year > 1900) p.bdYear = bd.year; }
+    }
     const b = $("#btnLogSave"); b.disabled = true;
     try { await save(p); close($("#ovLog")); toast(p.name + " : c'est noté"); } catch (e) { failed(e); } finally { b.disabled = false; }
   });
@@ -288,7 +244,6 @@
   $("#p_freq").innerHTML = FREQS.map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join("");
   $("#p_bd_d").innerHTML = `<option value="">Jour</option>` + Array.from({ length: 31 }, (_, i) => `<option value="${i + 1}">${i + 1}</option>`).join("");
   $("#p_bd_m").innerHTML = `<option value="">Mois</option>` + MONTHS.map((m, i) => `<option value="${i + 1}">${m}</option>`).join("");
-  const DEFAULT_FREQ = { famille: 14, proches: 30, amis: 60, collegues: 180, autres: 90 };
 
   function openPerson(id, circle) {
     curP = id ? people.find(p => p.id === id) : null;
@@ -297,7 +252,9 @@
     $("#pWho").innerHTML = curP ? `${plant(h.state, 52)}<div><span class="label">${esc(CIRCLES[p.circle] || "")}${p.demo ? " · exemple" : ""}</span><h2 id="pTitle">${esc(p.name)}</h2>
       <span class="pill ${STATE[h.state].cls}">${STATE[h.state].label}</span> <span class="muted small">${h.since == null ? "aucun échange noté" : "dernier contact " + esc(ago(h.since))}</span></div>`
       : `${plant("ok", 52)}<div><span class="label">Nouvelle personne</span><h2 id="pTitle">Ajouter quelqu'un</h2></div>`;
-    $("#pQuick").innerHTML = curP ? `<button class="primary" type="button" data-act="log" data-id="${esc(p.id)}">J'ai pris des nouvelles</button>` : "";
+    $("#pQuick").innerHTML = curP ? `<button class="primary" type="button" data-act="log" data-id="${esc(p.id)}">J'ai pris des nouvelles</button>
+      <button class="ai-btn" type="button" data-act="aiMsg" data-id="${esc(p.id)}">Idée de message</button>
+      <button class="ai-btn" type="button" data-act="aiPrep" data-id="${esc(p.id)}">Préparer l'appel</button>` : "";
     $("#pQuick").hidden = !curP;
     const f = $("#pForm").elements;
     f.name.value = p.name || ""; f.circle.value = p.circle || "amis"; f.freq.value = String(p.freq || 30);
@@ -348,6 +305,8 @@
     else if (a === "open") openPerson(id);
     else if (a === "log") { if (!$("#ovPerson").hidden) $("#ovPerson").hidden = true; openLog(id); }
     else if (a === "snooze") snooze(id);
+    else if (a === "aiMsg") aiMessages(id);
+    else if (a === "aiPrep") aiPrep(id);
   });
   $("#btnAdd").addEventListener("click", () => openPerson(null));
 
@@ -404,21 +363,7 @@
   });
 
   // ---------- matching helpers ----------
-  const normName = s => String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9 ]+/g, " ").replace(/\s+/g, " ").trim();
-  const normPhone = s => { const d = String(s || "").replace(/\D/g, ""); return d.length >= 9 ? d.slice(-9) : ""; };
-  function splitList(s) { return String(s || "").split(/[,;\n]+/).map(x => x.trim()).filter(Boolean); }
-  const uniq = a => Array.from(new Set(a));
   const sleep = ms => new Promise(r => setTimeout(r, ms));
-  function findByName(name) {
-    const n = normName(name); if (!n) return null;
-    const exact = people.find(p => normName(p.name) === n); if (exact) return exact;
-    const first = n.split(" ")[0];
-    if (first.length < 3) return null;
-    const c = people.filter(p => normName(p.name).split(" ")[0] === first);
-    return c.length === 1 ? c[0] : null;
-  }
-  function phoneIndex() { const m = new Map(); people.forEach(p => (p.phones || []).forEach(x => { const k = normPhone(x); if (k) m.set(k, p); })); return m; }
-  function emailIndex() { const m = new Map(); people.forEach(p => (p.emails || []).forEach(x => m.set(String(x).toLowerCase().trim(), p))); return m; }
   const fmtShortD = d => fmtShort.format(d);
 
   // changes: Map personId -> { p, src: { key: { dates:[Date], n, next? } } }
@@ -431,26 +376,13 @@
   }
   // Fold new dates into each person's sync block; write only people whose block actually changed.
   async function commit(ch, progress) {
-    const t = today0(), now = new Date(); let written = 0, i = 0;
+    const now = new Date(); let written = 0, i = 0;
     for (const { p, src } of ch.values()) {
       i++; if (progress) progress(i, ch.size);
       const fresh = people.find(x => x.id === p.id) || p;
       const c = JSON.parse(JSON.stringify(fresh)); c.sync = c.sync || {};
       const before = JSON.stringify(c.sync);
-      for (const [k, v] of Object.entries(src)) {
-        const prev = c.sync[k] || {};
-        const set = new Set(prev.days || []);
-        let last = prev.last ? parseD(prev.last) : null;
-        v.dates.forEach(d => {
-          if (!(d instanceof Date) || isNaN(d) || d > now) return;
-          const dd = new Date(d); dd.setHours(0, 0, 0, 0);
-          if (days(t, dd) <= 180) set.add(iso(dd));
-          if (!last || dd > last) last = dd;
-        });
-        const next = { last: last ? iso(last) : null, days: Array.from(set).sort().reverse().slice(0, 120), n: v.n };
-        if ("next" in v) next.next = v.next; else if (prev.next) next.next = prev.next;
-        c.sync[k] = next;
-      }
+      for (const [k, v] of Object.entries(src)) c.sync[k] = foldSync(c.sync[k], v, now);
       if (JSON.stringify(c.sync) === before) continue;
       await save(c); written++;
     }
@@ -471,66 +403,6 @@
   }
 
   // ---------- contacts import (.vcf / Google CSV) ----------
-  function decodeQP(v) {
-    const bin = v.replace(/=([0-9A-F]{2})/gi, (_, x) => String.fromCharCode(parseInt(x, 16)));
-    try { return decodeURIComponent(escape(bin)); } catch (e) { return bin; }
-  }
-  const unV = s => s.replace(/\\,/g, ",").replace(/\\;/g, ";").replace(/\\n/gi, " ").trim();
-  function parseBday(v) {
-    v = String(v || "").trim().replace(/T.*$/, "");
-    let m = /^(\d{4}|--)-?(\d{2})-?(\d{2})$/.exec(v);
-    if (m) { const y = m[1] === "--" ? null : +m[1]; return { y: y && y > 1700 ? y : null, m: +m[2], d: +m[3] }; }
-    m = /^(\d{1,2})[\/.](\d{1,2})[\/.](\d{4})$/.exec(v);
-    if (m) return { y: +m[3] > 1700 ? +m[3] : null, m: +m[2], d: +m[1] };
-    return null;
-  }
-  function parseVCF(text) {
-    text = text.replace(/=\r?\n/g, "").replace(/\r?\n[ \t]/g, "");
-    return text.split(/BEGIN:VCARD/i).slice(1).map(card => {
-      const o = { name: "", phones: [], emails: [], bday: null }; let n = null;
-      card.split(/\r?\n/).forEach(line => {
-        const i = line.indexOf(":"); if (i < 0) return;
-        const params = line.slice(0, i).toUpperCase(); let val = line.slice(i + 1).trim();
-        const prop = params.split(";")[0].replace(/^ITEM\d+\./, "");
-        if (/ENCODING=QUOTED-PRINTABLE/.test(params)) val = decodeQP(val);
-        if (prop === "FN") o.name = unV(val);
-        else if (prop === "N") n = val.split(";").map(unV);
-        else if (prop === "TEL" && val) o.phones.push(val);
-        else if (prop === "EMAIL" && val) o.emails.push(val.toLowerCase());
-        else if (prop === "BDAY") o.bday = parseBday(val);
-      });
-      if (!o.name && n) o.name = [n[1], n[0]].filter(Boolean).join(" ");
-      return o;
-    }).filter(o => o.name);
-  }
-  function parseCSVRows(text) {
-    text = text.replace(/^﻿/, "");
-    const rows = []; let row = [], cell = "", q = false;
-    for (let i = 0; i < text.length; i++) {
-      const ch = text[i];
-      if (q) { if (ch === '"') { if (text[i + 1] === '"') { cell += '"'; i++; } else q = false; } else cell += ch; }
-      else if (ch === '"') q = true;
-      else if (ch === ",") { row.push(cell); cell = ""; }
-      else if (ch === "\n" || ch === "\r") { if (ch === "\r" && text[i + 1] === "\n") i++; row.push(cell); rows.push(row); row = []; cell = ""; }
-      else cell += ch;
-    }
-    if (cell || row.length) { row.push(cell); rows.push(row); }
-    return rows.filter(r => r.some(c => c.trim()));
-  }
-  function parseGoogleCSV(text) {
-    const rows = parseCSVRows(text); if (rows.length < 2) return [];
-    const H = rows[0].map(normName);
-    const idx = f => H.findIndex(f);
-    const iName = idx(h => h === "name" || h === "nom"), iFirst = idx(h => h === "first name" || h === "given name" || h === "prenom"),
-      iLast = idx(h => h === "last name" || h === "family name" || h === "nom de famille"), iBd = idx(h => h === "birthday" || h === "anniversaire");
-    const iPh = H.map((h, i) => /phone|telephone/.test(h) && /value|valeur/.test(h) ? i : -1).filter(i => i >= 0);
-    const iEm = H.map((h, i) => /e mail|email/.test(h) && /value|valeur/.test(h) ? i : -1).filter(i => i >= 0);
-    return rows.slice(1).map(r => {
-      const name = (iName >= 0 && r[iName]) || [r[iFirst], r[iLast]].filter(Boolean).join(" ");
-      const multi = i => (r[i] || "").split(":::").map(s => s.trim()).filter(Boolean);
-      return { name: (name || "").trim(), phones: iPh.flatMap(multi), emails: iEm.flatMap(multi).map(e => e.toLowerCase()), bday: iBd >= 0 ? parseBday(r[iBd]) : null };
-    }).filter(o => o.name);
-  }
   let ctItems = [];
   function ctDup(o) {
     const pi = phoneIndex(), ei = emailIndex();
@@ -603,38 +475,6 @@
   });
 
   // ---------- WhatsApp import ----------
-  const WA_RE = /^‎?\[?(\d{1,4})[\/.\-](\d{1,2})[\/.\-](\d{1,4}),?\s+(\d{1,2})[:.h](\d{2})(?:[:.]\d{2})?\s*(?:[AaPp]\.?\s?[Mm]\.?)?\]?\s*(?:[-–]\s*)?([^:\n]{1,60}?):\s/;
-  function parseWA(text, filename) {
-    const lines = text.split(/\r?\n/), raw = [];
-    lines.forEach(l => { const m = WA_RE.exec(l); if (m) raw.push(m); });
-    if (!raw.length) return null;
-    let order = "dmy";
-    if (raw.some(m => m[1].length === 4)) order = "ymd";
-    else if (raw.some(m => +m[1] > 12)) order = "dmy";
-    else if (raw.some(m => +m[2] > 12)) order = "mdy";
-    const senders = new Map(), dates = [];
-    raw.forEach(m => {
-      let y, mo, d;
-      if (order === "ymd") { y = +m[1]; mo = +m[2]; d = +m[3]; }
-      else if (order === "mdy") { mo = +m[1]; d = +m[2]; y = +m[3]; }
-      else { d = +m[1]; mo = +m[2]; y = +m[3]; }
-      if (y < 100) y += 2000;
-      const dt = new Date(y, mo - 1, d, +m[4], +m[5]);
-      if (isNaN(dt)) return;
-      const who = m[6].replace(/‎/g, "").trim();
-      senders.set(who, (senders.get(who) || 0) + 1);
-      dates.push(dt);
-    });
-    const fn = String(filename || "").replace(/\.(txt|zip)$/i, "");
-    const fm = /(?:WhatsApp Chat (?:with|-)|Discussion WhatsApp avec|Chat WhatsApp con|WhatsApp-Chat mit)\s*(.+)$/i.exec(fn);
-    const chatName = fm ? fm[1].trim() : "";
-    const names = Array.from(senders.keys());
-    const group = names.length > 2;
-    let match = chatName ? findByName(chatName) : null;
-    if (!match && !group) for (const nm of names) { const p = findByName(nm); if (p) { match = p; break; } }
-    const label = chatName || (group ? names.slice(0, 3).join(", ") + "…" : names.find(n => !match || normName(n) !== normName(match.name)) || names[0] || "Discussion");
-    return { label, chatName, group, dates, count: dates.length, last: dates.reduce((a, b) => b > a ? b : a, dates[0]), match };
-  }
   let waChats = [];
   function renderWA() {
     const opts = p => `<option value="">Ignorer</option><option value="__new"${p === "__new" ? " selected" : ""}>+ Nouvelle personne</option>` +
@@ -748,19 +588,9 @@
   });
 
   // ---------- calendar matching (Android agenda) ----------
-  function eventDate(ev) { const s = ev.start && (ev.start.dateTime || ev.start.date); if (!s) return null; const d = /T/.test(s) ? new Date(s) : parseD(s); return d && !isNaN(d) ? d : null; }
-  function eventPeople(ev, ei, nameRes) {
-    const hits = new Set();
-    const att = Array.isArray(ev.attendees) ? ev.attendees : [];
-    if (att.length && att.length <= 8) att.forEach(a => { const p = a && a.email && ei.get(String(a.email).toLowerCase()); if (p) hits.add(p); });
-    const title = " " + normName(ev.summary) + " ";
-    if (!/anniversaire|birthday/.test(title)) nameRes.forEach(([p, keys]) => { if (keys.some(k => title.includes(" " + k + " "))) hits.add(p); });
-    return Array.from(hits);
-  }
   function applyCalendar(ch, events) {
     const ei = emailIndex();
-    const firsts = new Map(); people.forEach(p => { const f = normName(p.name).split(" ")[0]; firsts.set(f, (firsts.get(f) || 0) + 1); });
-    const nameRes = people.map(p => { const n = normName(p.name), f = n.split(" ")[0]; const keys = [n]; if (f !== n && f.length >= 3 && firsts.get(f) === 1) keys.push(f); return [p, keys.filter(k => k.length >= 3)]; });
+    const nameRes = nameKeys(people);
     const now = new Date(), nextBy = new Map();
     events.forEach(ev => {
       const d = eventDate(ev); if (!d) return;
@@ -878,6 +708,7 @@
       $("#syQr").innerHTML = q.createSvgTag({ cellSize: 5, margin: 2, scalable: true });
     } catch (e) { $("#syQr").textContent = ""; }
     $("#syLink").textContent = pairLink(key);
+    $("#syMcpUrl").value = SB_URL + "/functions/v1/cercle-mcp?key=" + key;
   }
   $("#btnSync").addEventListener("click", () => { paintSyncSheet(); $("#syErr").hidden = true; $("#syJoinKey").value = ""; open("#ovSync"); });
   $("#btnSyCreate").addEventListener("click", () => { Sync.enable(); paintSyncSheet(); toast("Synchronisation activée"); });
@@ -890,6 +721,10 @@
     try { await navigator.clipboard.writeText(ta.value); toast("Code copié"); } catch (e) { ta.focus(); ta.select(); toast("Code sélectionné : copie-le"); }
   });
   $("#btnSyNow").addEventListener("click", () => { Sync.run(); });
+  $("#btnSyMcpCopy").addEventListener("click", async () => {
+    const ta = $("#syMcpUrl");
+    try { await navigator.clipboard.writeText(ta.value); toast("Adresse copiée"); } catch (e) { ta.focus(); ta.select(); toast("Adresse sélectionnée : copie-la"); }
+  });
   let syOffArmed = false;
   $("#btnSyOff").addEventListener("click", () => {
     if (!syOffArmed) { syOffArmed = true; $("#btnSyOff").textContent = "Confirmer la désactivation"; return; }
@@ -1109,6 +944,161 @@
     else if (a === "suggest") openSuggest();
     else enableNative(a);
   });
+
+  // ---------- assistant IA (engines in ai.js, context from core.js) ----------
+  const AI_HELP = {
+    off: "",
+    claude: "<ol><li>Crée une clé sur <b>console.anthropic.com</b> › API Keys (paiement à l'usage).</li><li>Colle-la ici. Elle reste sur cet appareil et n'est jamais synchronisée.</li><li>Ordre de grandeur, d'après les tarifs publics : 1 à 2 centimes par demande avec Opus, nettement moins avec Haiku.</li></ol>",
+    local: "<ol><li><b>Ollama</b> : installe-le depuis ollama.com, puis lance <code>ollama pull qwen3</code> (ou un autre modèle).</li><li>Autorise Cercle : définis la variable <code>OLLAMA_ORIGINS=*</code> puis redémarre Ollama.</li><li><b>LM Studio</b> : onglet Developer › Start server, coche « Enable CORS ».</li><li>Depuis ton téléphone (app Android) : lance le serveur avec <code>OLLAMA_HOST=0.0.0.0</code> (ou « Serve on local network » dans LM Studio) et mets l'adresse de l'ordinateur, par exemple <code>http://192.168.1.20:11434/v1</code>. La version web sur iPhone ne peut pas joindre un autre appareil en http.</li></ol>",
+    openai: "<ol><li>Tout service compatible avec l'API OpenAI fonctionne : OpenRouter (<code>https://openrouter.ai/api/v1</code>), Mistral (<code>https://api.mistral.ai/v1</code>)…</li><li>Colle l'adresse, ta clé et le nom exact du modèle.</li></ol>",
+    chrome: "<ol><li>Chrome sait faire tourner un petit modèle directement sur l'appareil (selon la version et le matériel).</li><li>La première utilisation peut télécharger le modèle. Ensuite, tout reste hors ligne.</li></ol>"
+  };
+  const AI_PRIVACY = {
+    off: "",
+    claude: "Pour chaque demande, la fiche de la personne concernée (sans téléphone ni e-mail) est envoyée à Anthropic.",
+    local: "Tout reste chez toi : la demande ne quitte pas ton ordinateur ou ton réseau local.",
+    openai: "Pour chaque demande, la fiche de la personne concernée (sans téléphone ni e-mail) est envoyée au service choisi.",
+    chrome: "Tout reste sur cet appareil."
+  };
+  let aiCfg = { provider: "off" };
+  function paintAI() {
+    const el = $("#aiState"); if (!el) return;
+    el.textContent = Assistant.label(); el.className = "src-st" + (Assistant.ready() ? " good" : "");
+  }
+  $("#aiModelClaude").innerHTML = CLAUDE_MODELS.map(([v, l]) => `<option value="${v}">${esc(l)}</option>`).join("");
+  $("#aiPresets").innerHTML = LOCAL_PRESETS.map(([v, l]) => `<button type="button" data-base="${esc(v)}">${esc(l)}</button>`).join("");
+  function readAiForm() {
+    const c = { provider: aiCfg.provider };
+    if (c.provider === "claude") { c.key = $("#aiKey").value.trim(); c.model = $("#aiModelClaude").value; }
+    if (c.provider === "local" || c.provider === "openai") { c.key = $("#aiKey").value.trim(); c.base = $("#aiBase").value.trim(); c.model = $("#aiModel").value.trim(); }
+    return c;
+  }
+  function paintAiCfg() {
+    const p = aiCfg.provider || "off";
+    $$("#aiProv button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.p === p)));
+    $$("#ovAiCfg [data-for]").forEach(f => { f.hidden = !f.dataset.for.split(" ").includes(p); });
+    $("#aiKeyLabel").textContent = p === "local" ? "Clé API (facultative)" : "Clé API";
+    $("#aiKeyHint").textContent = p === "claude" ? "Commence par sk-ant-…" : p === "local" ? "Laisse vide pour Ollama et LM Studio." : "";
+    $("#aiBase").placeholder = p === "local" ? "http://localhost:11434/v1" : "https://openrouter.ai/api/v1";
+    $("#aiPresets").hidden = p !== "local";
+    $("#aiHelpBody").innerHTML = AI_HELP[p] || "";
+    $("#aiHelp").hidden = !AI_HELP[p];
+    $("#aiPrivacy").textContent = AI_PRIVACY[p] || "";
+    $("#aiPrivacy").hidden = !AI_PRIVACY[p];
+  }
+  function openAiCfg() {
+    aiCfg = Object.assign({ provider: "off" }, Assistant.settings());
+    $("#aiProvChrome").hidden = !Assistant.hasChromeAI();
+    $("#aiKey").value = aiCfg.key || "";
+    $("#aiModelClaude").value = aiCfg.provider === "claude" && aiCfg.model ? aiCfg.model : CLAUDE_MODELS[0][0];
+    $("#aiBase").value = aiCfg.base || ""; $("#aiModel").value = aiCfg.provider !== "claude" ? (aiCfg.model || "") : "";
+    $("#aiTestOut").textContent = "";
+    paintAiCfg(); open("#ovAiCfg");
+  }
+  $("#btnAiCfg").addEventListener("click", openAiCfg);
+  $("#aiProv").addEventListener("click", e => {
+    const b = e.target.closest("[data-p]"); if (!b) return;
+    const prev = aiCfg.provider; aiCfg = readAiForm(); aiCfg.provider = b.dataset.p;
+    if (prev !== aiCfg.provider) { $("#aiKey").value = ""; if (aiCfg.provider === "local" && !$("#aiBase").value) $("#aiBase").value = LOCAL_PRESETS[0][0]; if (aiCfg.provider === "openai") $("#aiBase").value = ""; }
+    $("#aiTestOut").textContent = ""; paintAiCfg();
+  });
+  $("#aiPresets").addEventListener("click", e => { const b = e.target.closest("[data-base]"); if (b) $("#aiBase").value = b.dataset.base; });
+  $("#btnAiSave").addEventListener("click", () => { Assistant.save(readAiForm()); paintAI(); close($("#ovAiCfg")); toast(Assistant.ready() ? "Assistant prêt" : "Assistant désactivé"); });
+  $("#btnAiTest").addEventListener("click", async () => {
+    const prev = Assistant.settings(); Assistant.save(readAiForm());
+    const out = $("#aiTestOut"); out.className = "busy small"; out.textContent = "Test en cours…";
+    try { const r = await Assistant.run("Réponds seulement par le mot : OK"); out.className = "small src-st good"; out.textContent = "Ça marche. Réponse : " + String(r).slice(0, 60); }
+    catch (e) { out.className = "small err"; out.textContent = (e && e.message) || "Échec du test."; Assistant.save(prev); }
+  });
+
+  function needAI() {
+    if (Assistant.ready()) return false;
+    openAiCfg(); toast("Choisis d'abord un moteur d'IA."); return true;
+  }
+  const aiErr = e => (e && e.message) || "L'assistant n'a pas pu répondre.";
+  const brief = p => Core.personBrief(p);
+  // Phone number in international form for wa.me, guessing the country from the device language.
+  function intlPhone(raw) {
+    let d = String(raw || "").replace(/[^\d+]/g, "");
+    if (d.startsWith("+")) return d.slice(1);
+    if (d.startsWith("00")) return d.slice(2);
+    const cc = { BE: "32", FR: "33", CH: "41", LU: "352", CA: "1", SN: "221", MA: "212", CI: "225" }[(navigator.language.split("-")[1] || "").toUpperCase()];
+    return cc && d.startsWith("0") ? cc + d.slice(1) : d;
+  }
+  let aoRerun = null;
+  function aiOut(label, title) {
+    $("#aoLabel").textContent = label; $("#aoTitle").textContent = title;
+    $("#aoBody").innerHTML = `<p class="busy">L'IA réfléchit…</p>`; $("#aoEngine").textContent = Assistant.label();
+    if ($("#ovAiOut").hidden) open("#ovAiOut");
+  }
+  async function aiMessages(id) {
+    const p = people.find(x => x.id === id); if (!p || needAI()) return;
+    aoRerun = () => aiMessages(id); $("#btnAoAgain").textContent = "Autres idées";
+    aiOut("Idée de message", "Pour " + p.name);
+    try {
+      const r = await Assistant.messageIdeas(brief(p));
+      const phone = (p.phones || [])[0];
+      $("#aoBody").innerHTML = (r.ideas || []).slice(0, 4).map((x, i) => {
+        const t = encodeURIComponent(x.text);
+        return `<div class="idea"><span class="tone">${esc(x.tone)}</span><div>${esc(x.text)}</div><div class="row">
+          <button type="button" data-copy="${i}">Copier</button>
+          <a class="btn" target="_blank" rel="noopener" href="https://wa.me/${phone ? intlPhone(phone) : ""}?text=${t}">WhatsApp</a>
+          ${phone ? `<a class="btn" href="sms:${esc(phone.replace(/\s/g, ""))}?&body=${t}">SMS</a>` : ""}</div></div>`;
+      }).join("") || `<p class="muted">Aucune idée cette fois. Réessaie.</p>`;
+      $("#aoBody").dataset.ideas = JSON.stringify((r.ideas || []).map(x => x.text));
+    } catch (e) { $("#aoBody").innerHTML = `<p class="err">${esc(aiErr(e))}</p>`; }
+  }
+  async function aiPrep(id) {
+    const p = people.find(x => x.id === id); if (!p || needAI()) return;
+    aoRerun = () => aiPrep(id); $("#btnAoAgain").textContent = "Autres sujets";
+    aiOut("Préparer l'appel", "Avec " + p.name);
+    try {
+      const r = await Assistant.callPrep(brief(p));
+      $("#aoBody").innerHTML = `<ol class="topics">${(r.topics || []).map(x => `<li>${esc(x)}</li>`).join("")}</ol>` +
+        (r.careful ? `<p class="tip"><b>À garder en tête</b>${esc(r.careful)}</p>` : "");
+    } catch (e) { $("#aoBody").innerHTML = `<p class="err">${esc(aiErr(e))}</p>`; }
+  }
+  $("#btnAoAgain").addEventListener("click", () => { if (aoRerun) aoRerun(); });
+  $("#aoBody").addEventListener("click", async e => {
+    const b = e.target.closest("[data-copy]"); if (!b) return;
+    const list = JSON.parse($("#aoBody").dataset.ideas || "[]"); const text = list[+b.dataset.copy] || "";
+    try { await navigator.clipboard.writeText(text); toast("Message copié"); } catch (err) { toast("Copie impossible : sélectionne le texte à la main."); }
+  });
+
+  $("#btnAiTidy").addEventListener("click", async () => {
+    if (!logP || needAI()) return;
+    const raw = $("#logNote").value.trim();
+    const info = $("#aiTidyInfo");
+    if (!raw) { info.hidden = false; info.className = "muted small"; info.textContent = "Écris ou dicte d'abord tes notes en vrac, puis touche ce bouton."; return; }
+    const b = $("#btnAiTidy"); b.disabled = true; info.hidden = false; info.className = "busy small"; info.textContent = "Mise en forme…";
+    try {
+      const r = await Assistant.tidyNote(raw, brief(logP));
+      if (r.summary) $("#logNote").value = r.summary;
+      (r.toAsk || []).forEach(q => { if (q && !newAsks.includes(q)) newAsks.push(q); }); paintNewAsks();
+      logExtra = { facts: r.facts || [], birthday: r.birthday };
+      const bits = [];
+      if ((r.toAsk || []).length) bits.push((r.toAsk.length) + " question(s) ajoutée(s)");
+      if ((r.facts || []).length) bits.push((r.facts.length) + " fait(s) à retenir seront ajoutés à sa fiche : " + r.facts.join(" ; "));
+      if (r.birthday && r.birthday.day && r.birthday.month && !logP.bdMonth) bits.push("anniversaire repéré : " + r.birthday.day + " " + MONTHS[r.birthday.month - 1]);
+      info.className = "muted small"; info.textContent = bits.length ? bits.join(". ") + ". Vérifie, puis enregistre." : "Notes mises en forme. Vérifie, puis enregistre.";
+    } catch (e) { info.className = "err"; info.textContent = aiErr(e); }
+    finally { b.disabled = false; }
+  });
+
+  $("#btnAiAsk").addEventListener("click", () => {
+    if (needAI()) return;
+    $("#askOut").hidden = true; $("#askInfo").textContent = Assistant.label(); open("#ovAsk");
+  });
+  $("#askChips").addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return; $("#askQ").value = b.textContent; $("#btnAskGo").click(); });
+  $("#btnAskGo").addEventListener("click", async () => {
+    const q = $("#askQ").value.trim(); if (!q) { $("#askQ").focus(); return; }
+    const out = $("#askOut"), b = $("#btnAskGo");
+    out.hidden = false; out.className = "ai-out busy"; out.textContent = "L'IA réfléchit…"; b.disabled = true;
+    try { out.textContent = await Assistant.ask(q, Core.circleDigest(people)); out.className = "ai-out"; }
+    catch (e) { out.className = "ai-out err"; out.textContent = aiErr(e); }
+    finally { b.disabled = false; }
+  });
+
 
   function nativeStart() {
     if (!isNative) return;

@@ -5,7 +5,10 @@
   "description": "Cercle : garder le lien avec ses proches. PWA + app Android.",
   "scripts": {
     "vendor": "node scripts/vendor.mjs",
-    "sync": "npm run vendor && npx cap sync android"
+    "sync": "npm run vendor && npx cap sync android",
+    "test": "node --test test/*.test.mjs",
+    "mcp": "node mcp/server.mjs",
+    "deploy:mcp": "node scripts/deploy-mcp.mjs"
   },
   "dependencies": {
     "@capacitor/android": "8.5.3",
@@ -15,8 +18,10 @@
     "@capacitor/local-notifications": "8.3.1"
   },
   "devDependencies": {
+    "@anthropic-ai/sdk": "^0.135.0",
     "@fontsource/atkinson-hyperlegible": "5.3.0",
     "@fontsource/bricolage-grotesque": "5.3.0",
+    "esbuild": "^0.28.2",
     "jszip": "3.10.1",
     "qrcode-generator": "2.0.4"
   }

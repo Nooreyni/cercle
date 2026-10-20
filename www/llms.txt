@@ -1,0 +1,13 @@
+# Cercle
+
+> Personal app to keep in touch with the people who matter: who to contact this week, what to ask them, upcoming birthdays. French UI. PWA + Android app.
+
+Cercle exposes an MCP server so AI assistants can read and update a user's circle with the user's pairing key.
+
+- MCP endpoint (Streamable HTTP, JSON responses): https://pxayslaqnuhcbakuaimg.supabase.co/functions/v1/cercle-mcp?key=<pairing key>
+- Tools: get_overview, get_person, search, log_contact, add_person, update_person, add_question, snooze_person
+- Source and docs: https://github.com/Nooreyni/cercle (AGENTS.md, docs/IA.md, docs/ARCHITECTURE.md)
+
+## Data model
+
+One JSON object per person: name, circle (famille|proches|amis|collegues|autres), freq (wanted rhythm in days), birthday (bdDay, bdMonth, bdYear), notes, asks (questions for next time), log (exchanges: date, type appel|message|vu|visio, note), sync (dates seen from WhatsApp, calls/SMS, calendar). Only dates of exchanges are stored, never message content.

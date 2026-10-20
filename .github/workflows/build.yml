@@ -26,6 +26,9 @@ jobs:
       - name: Dépendances
         run: npm ci
 
+      - name: Tests (logique, analyseurs, serveur MCP)
+        run: npm test
+
       - name: Fichiers web (polices, librairies, numéro de version)
         run: |
           npm run vendor

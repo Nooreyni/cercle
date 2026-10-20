@@ -1,5 +1,8 @@
-// Copies third-party browser files into www/ so the app works offline (PWA and Android).
+// Prepares www/ to run offline (PWA and Android): copies fonts and browser libraries,
+// and bundles the official Anthropic SDK into one ES module for the in-app assistant.
 import { copyFileSync, mkdirSync } from "node:fs";
+import { build } from "esbuild";
+
 const copies = [
   ["node_modules/jszip/dist/jszip.min.js", "www/vendor/jszip.min.js"],
   ["node_modules/qrcode-generator/dist/qrcode.js", "www/vendor/qrcode.js"],
@@ -12,4 +15,10 @@ const copies = [
 mkdirSync("www/vendor", { recursive: true });
 mkdirSync("www/fonts", { recursive: true });
 for (const [from, to] of copies) copyFileSync(from, to);
-console.log("vendored", copies.length, "files");
+
+await build({
+  stdin: { contents: 'export { default } from "@anthropic-ai/sdk";', resolveDir: process.cwd(), loader: "js" },
+  bundle: true, format: "esm", platform: "browser", target: "es2020", minify: true, legalComments: "none",
+  outfile: "www/vendor/anthropic.js", logLevel: "warning",
+});
+console.log("vendored", copies.length, "files + anthropic.js");
