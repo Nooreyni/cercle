@@ -1,0 +1,604 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Cercle</title>
+<meta name="description" content="Garder le lien avec ses proches : qui appeler cette semaine, quoi leur demander, les anniversaires à venir.">
+<meta name="theme-color" content="#2F6B45">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Cercle">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="icons/favicon.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<style>
+@font-face { font-family:"Bricolage Grotesque"; font-weight:500; font-display:swap; src:url(fonts/bricolage-500.woff2) format("woff2") }
+@font-face { font-family:"Bricolage Grotesque"; font-weight:700; font-display:swap; src:url(fonts/bricolage-700.woff2) format("woff2") }
+@font-face { font-family:"Bricolage Grotesque"; font-weight:800; font-display:swap; src:url(fonts/bricolage-800.woff2) format("woff2") }
+@font-face { font-family:"Atkinson Hyperlegible"; font-weight:400; font-display:swap; src:url(fonts/atkinson-400.woff2) format("woff2") }
+@font-face { font-family:"Atkinson Hyperlegible"; font-weight:700; font-display:swap; src:url(fonts/atkinson-700.woff2) format("woff2") }
+:root { color-scheme:light; padding-top:env(safe-area-inset-top, 0px); padding-bottom:env(safe-area-inset-bottom, 0px) }
+body { margin:0 }
+img { max-width:100% }
+
+/* Layout: a windowsill. "This week" cards and side notes up top, then the garden of people grouped by circle. */
+:root {
+  --bg:#EEF2EA; --surface:#FBFCF8; --ink:#1D2A21; --muted:#56645A; --line:#D3DBCF; --soft:#E3EADD;
+  --accent:#2F6B45; --accent-ink:#FFFFFF; --pollen:#E0A526;
+  --leaf:#3F8F55; --leaf-2:#5DB06F; --leaf-dry:#B9A23E; --dead:#9A7B55; --pot:#B8714A; --pot-rim:#9E5E3B; --petal:#F2C94C; --petal-c:#D9822B;
+  --warn:#8A5D00; --warn-bg:#FFF0CC; --crit:#A63A2A; --crit-bg:#F8E1DC; --good:#2F6B45; --good-bg:#DDEFE1;
+  --shadow:0 12px 32px rgba(29,42,33,.18);
+  --f-display:"Bricolage Grotesque", "Avenir Next", "Segoe UI", sans-serif;
+  --f-body:"Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg:#111813; --surface:#18211A; --ink:#E4ECE3; --muted:#9AAA9C; --line:#2A372D; --soft:#1F2A21;
+  --accent:#7CC995; --accent-ink:#0E1A12; --pollen:#F0C054;
+  --leaf:#5DB06F; --leaf-2:#86CF94; --leaf-dry:#C9B24E; --dead:#A88A63; --pot:#B8714A; --pot-rim:#8E5233; --petal:#F2C94C; --petal-c:#E39A45;
+  --warn:#F0C054; --warn-bg:#3A2E10; --crit:#FF8C78; --crit-bg:#3B1C17; --good:#7CC995; --good-bg:#183522;
+  --shadow:0 12px 32px rgba(0,0,0,.5); color-scheme:dark;
+} }
+:root[data-theme="dark"] {
+  --bg:#111813; --surface:#18211A; --ink:#E4ECE3; --muted:#9AAA9C; --line:#2A372D; --soft:#1F2A21;
+  --accent:#7CC995; --accent-ink:#0E1A12; --pollen:#F0C054;
+  --leaf:#5DB06F; --leaf-2:#86CF94; --leaf-dry:#C9B24E; --dead:#A88A63; --pot:#B8714A; --pot-rim:#8E5233; --petal:#F2C94C; --petal-c:#E39A45;
+  --warn:#F0C054; --warn-bg:#3A2E10; --crit:#FF8C78; --crit-bg:#3B1C17; --good:#7CC995; --good-bg:#183522;
+  --shadow:0 12px 32px rgba(0,0,0,.5); color-scheme:dark;
+}
+* { box-sizing:border-box }
+[hidden] { display:none !important }
+body { background:var(--bg); color:var(--ink); font-family:var(--f-body); font-size:15px; line-height:1.5 }
+.wrap { max-width:1120px; margin:0 auto; padding-block:24px 56px;
+  padding-left:max(16px, env(safe-area-inset-left, 0px)); padding-right:max(16px, env(safe-area-inset-right, 0px)); display:grid; gap:24px }
+h1,h2,h3 { font-family:var(--f-display); margin:0; text-wrap:balance; letter-spacing:-.01em }
+h1 { font-size:clamp(34px, 6vw, 48px); font-weight:800; line-height:1 }
+h2 { font-size:20px; font-weight:700 }
+h3 { font-size:17px; font-weight:700 }
+p { margin:0 }
+.muted { color:var(--muted) }
+.small { font-size:13px }
+.num { font-variant-numeric:tabular-nums }
+.label { font-size:12px; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); font-weight:700 }
+
+button, .btn { font:inherit; font-weight:700; font-size:14px; border-radius:999px; border:1.5px solid var(--line); background:var(--surface); color:var(--ink);
+  padding:8px 14px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; line-height:1.2 }
+button:hover { border-color:var(--muted) }
+button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, .person:focus-visible { outline:2.5px solid var(--accent); outline-offset:2px }
+button.primary { background:var(--accent); border-color:var(--accent); color:var(--accent-ink) }
+button.ghost { border-color:transparent; background:transparent; color:var(--muted); padding:6px 10px }
+button.ghost:hover { color:var(--ink); background:var(--soft) }
+button.danger { color:var(--crit); border-color:var(--crit) }
+button[disabled] { opacity:.5; cursor:not-allowed }
+
+header.top { display:flex; flex-wrap:wrap; gap:16px; align-items:flex-end; justify-content:space-between }
+header.top .t { display:grid; gap:8px; min-width:0 }
+header.top .t p { color:var(--muted); max-width:56ch }
+.actions { display:flex; flex-wrap:wrap; gap:8px }
+
+.banner { display:flex; flex-wrap:wrap; gap:8px 16px; align-items:center; justify-content:space-between; padding:10px 16px;
+  border-radius:14px; background:var(--soft); border:1.5px dashed var(--line) }
+.banner p { min-width:0 }
+
+.top-grid { display:grid; grid-template-columns:minmax(0, 2fr) minmax(0, 1fr); gap:20px; align-items:start }
+@media (max-width:860px) { .top-grid { grid-template-columns:minmax(0,1fr) } }
+.col { display:grid; gap:14px; min-width:0 }
+.sec-head { display:flex; justify-content:space-between; align-items:baseline; gap:12px; flex-wrap:wrap }
+
+.cards { display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:14px }
+.card { background:var(--surface); border:1.5px solid var(--line); border-radius:18px; padding:16px; display:grid; gap:10px; align-content:start; min-width:0 }
+.card .who { display:flex; gap:12px; align-items:center }
+.card .who svg { flex:0 0 auto }
+.card .why { font-size:13.5px }
+.card .hint { background:var(--soft); border-radius:10px; padding:8px 10px; font-size:13.5px }
+.card .hint b { display:block; font-size:11.5px; letter-spacing:.05em; text-transform:uppercase; color:var(--muted) }
+.card .row { display:flex; flex-wrap:wrap; gap:8px }
+.card.bday { border-color:var(--pollen) }
+.calm { background:var(--surface); border:1.5px solid var(--line); border-radius:18px; padding:22px; display:grid; gap:6px }
+
+.side { background:var(--surface); border:1.5px solid var(--line); border-radius:18px; padding:16px; display:grid; gap:12px }
+.bd-list { display:grid; gap:8px; margin:0; padding:0; list-style:none }
+.bd-list li { display:flex; justify-content:space-between; gap:10px; align-items:baseline }
+.bd-list li button { padding:0; border:0; background:none; font-weight:700; text-align:left }
+.bd-list li button:hover { color:var(--accent) }
+.stats { display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:8px }
+.stat { display:grid; gap:2px }
+.stat .v { font-family:var(--f-display); font-size:28px; font-weight:800; line-height:1.05 }
+.meter { height:8px; border-radius:4px; background:var(--soft); overflow:hidden; display:flex }
+.meter i { display:block; height:100% }
+
+.filters { display:flex; flex-wrap:wrap; gap:8px; align-items:center }
+.chipbtn { padding:6px 12px; font-size:13.5px }
+.chipbtn[aria-pressed="true"] { background:var(--ink); color:var(--bg); border-color:var(--ink) }
+.circle-group { display:grid; gap:10px }
+.garden { display:grid; grid-template-columns:repeat(auto-fill, minmax(128px, 1fr)); gap:10px }
+.person { background:var(--surface); border:1.5px solid var(--line); border-radius:16px; padding:10px 8px 12px; display:grid; justify-items:center; gap:2px;
+  cursor:pointer; text-align:center; font:inherit; color:inherit; font-weight:400 }
+.person:hover { border-color:var(--accent) }
+.person .nm { font-family:var(--f-display); font-weight:700; font-size:15.5px; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
+.person .st { font-size:12.5px; color:var(--muted) }
+.person.add { border-style:dashed; color:var(--muted); align-content:center; min-height:150px }
+.person.add span { font-size:30px; line-height:1 }
+
+.pill { display:inline-flex; gap:6px; align-items:center; font-size:12.5px; font-weight:700; padding:2px 9px; border-radius:999px; color:var(--c); background:var(--cb); white-space:nowrap }
+.s-bloom { --c:var(--good); --cb:var(--good-bg) } .s-ok { --c:var(--good); --cb:var(--good-bg) }
+.s-thirsty { --c:var(--warn); --cb:var(--warn-bg) } .s-wilted { --c:var(--crit); --cb:var(--crit-bg) }
+
+/* plant */
+svg.plant .pot { fill:var(--pot) } svg.plant .rim { fill:var(--pot-rim) }
+svg.plant .stem { stroke:var(--leaf); stroke-width:2.6; fill:none; stroke-linecap:round }
+svg.plant .lf { fill:var(--leaf) } svg.plant .lf2 { fill:var(--leaf-2) }
+svg.plant.dry .stem { stroke:var(--leaf-dry) } svg.plant.dry .lf, svg.plant.dry .lf2 { fill:var(--leaf-dry) }
+svg.plant.dead .stem { stroke:var(--dead) } svg.plant.dead .lf, svg.plant.dead .lf2 { fill:var(--dead) }
+svg.plant .pet { fill:var(--petal) } svg.plant .ctr { fill:var(--petal-c) }
+@media (prefers-reduced-motion: no-preference) {
+  svg.plant.bloom .sway { transform-origin:30px 54px; animation:sway 5s ease-in-out infinite }
+  @keyframes sway { 50% { transform:rotate(2.5deg) } }
+}
+
+.foot { color:var(--muted); font-size:13px; display:grid; gap:4px }
+
+/* sheets */
+.ov { position:fixed; inset:0; background:rgba(12,18,14,.45); z-index:50; display:flex; justify-content:center; align-items:flex-end }
+@media (min-width:700px) { .ov { align-items:center; padding:16px } }
+.sheet { background:var(--surface); width:min(600px, 100%); max-height:100%; overflow:auto; border-radius:22px 22px 0 0; box-shadow:var(--shadow);
+  display:grid; gap:16px; align-content:start;
+  padding-block:20px calc(24px + env(safe-area-inset-bottom, 0px));
+  padding-left:max(20px, env(safe-area-inset-left, 0px)); padding-right:max(20px, env(safe-area-inset-right, 0px)) }
+@media (min-width:700px) { .sheet { border-radius:22px } }
+.sheet-head { display:flex; justify-content:space-between; align-items:flex-start; gap:12px }
+.sheet-head .who { display:flex; gap:12px; align-items:center; min-width:0 }
+.form { display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:12px 14px }
+.form .full { grid-column:1 / -1 }
+@media (max-width:520px) { .form { grid-template-columns:minmax(0,1fr) } }
+.field { display:grid; gap:5px; min-width:0 }
+.field > label, .field > .lb { font-size:13.5px; font-weight:700 }
+.field small { color:var(--muted); font-size:12.5px }
+input, select, textarea { font:inherit; color:var(--ink); background:var(--bg); border:1.5px solid var(--line); border-radius:10px; padding:9px 11px; min-width:0; width:100% }
+textarea { resize:vertical }
+.inline { display:flex; gap:8px }
+.inline > * { flex:1 1 0 }
+.seg { display:flex; flex-wrap:wrap; gap:6px }
+.seg button { padding:7px 12px; font-size:13.5px }
+.seg button[aria-pressed="true"] { background:var(--accent); border-color:var(--accent); color:var(--accent-ink) }
+.asks { display:grid; gap:6px; margin:0; padding:0; list-style:none }
+.asks li { display:flex; gap:8px; align-items:center; background:var(--soft); border-radius:10px; padding:6px 6px 6px 10px }
+.asks li span { flex:1; min-width:0 }
+.asks li label { flex:1; display:flex; gap:8px; align-items:center; min-width:0 }
+.asks input[type=checkbox] { width:auto }
+.addrow { display:flex; gap:8px } .addrow input { flex:1 }
+.timeline { display:grid; gap:0; margin:0; padding:0; list-style:none; border-left:2px solid var(--line); margin-left:6px }
+.timeline li { position:relative; padding:0 0 12px 16px; display:grid; gap:2px }
+.timeline li::before { content:""; position:absolute; left:-7px; top:6px; width:12px; height:12px; border-radius:50%; background:var(--surface); border:2.5px solid var(--accent) }
+.timeline .meta { font-size:13px; color:var(--muted) }
+.sheet-foot { display:flex; flex-wrap:wrap; gap:8px; justify-content:space-between; align-items:center }
+.toast { position:fixed; left:50%; transform:translateX(-50%); top:calc(14px + env(safe-area-inset-top, 0px)); background:var(--ink); color:var(--bg);
+  padding:10px 18px; border-radius:999px; z-index:80; box-shadow:var(--shadow); max-width:calc(100% - 32px); font-weight:700 }
+.err { color:var(--crit); font-size:13.5px }
+.src-list { display:grid; gap:12px; margin:0; padding:0; list-style:none }
+.src-list li { display:grid; grid-template-columns:30px minmax(0,1fr) auto; gap:10px; align-items:center }
+.src-ic { width:30px; height:30px; border-radius:9px; display:grid; place-items:center; font-family:var(--f-display); font-weight:800; font-size:13px; background:var(--soft); color:var(--accent) }
+.src-st { font-size:12.5px; color:var(--muted) } .src-st.bad { color:var(--crit) } .src-st.good { color:var(--good) }
+.src-list button { padding:6px 12px; font-size:13px }
+details.how { background:var(--soft); border-radius:12px; padding:10px 14px; font-size:14px }
+details.how summary { cursor:pointer; font-weight:700 }
+details.how ol { margin:8px 0 2px; padding-left:20px; display:grid; gap:6px }
+.pick { display:grid; margin:0; padding:0; list-style:none; max-height:46vh; overflow:auto; border:1.5px solid var(--line); border-radius:12px }
+.pick li { display:grid; grid-template-columns:auto minmax(0,1fr) auto; gap:10px; align-items:center; padding:9px 12px; border-bottom:1px solid var(--line) }
+.pick li:last-child { border-bottom:0 }
+.pick .nm2 { font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
+.pick .meta { font-size:12.5px; color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
+.pick .dup { font-size:12px; color:var(--warn); font-weight:700 }
+.pick select { width:auto; max-width:42vw; padding:5px 8px; font-size:13px }
+.pick input[type=checkbox] { width:18px; height:18px }
+.pick .empty { padding:18px; text-align:center; color:var(--muted); display:block }
+.toolbar { display:flex; flex-wrap:wrap; gap:8px; align-items:center }
+.toolbar input[type=search] { flex:1 1 200px; width:auto }
+.toolbar button { padding:6px 12px; font-size:13px }
+.srcline { display:flex; justify-content:space-between; gap:4px 12px; font-size:14px; flex-wrap:wrap; padding:6px 0; border-bottom:1px solid var(--line) }
+.srcline:last-child { border-bottom:0 }
+.privacy { font-size:13px; color:var(--muted); border-left:3px solid var(--accent); padding-left:10px }
+
+.qr { display:flex; justify-content:center }
+.qr svg { width:min(220px, 70vw); height:auto; background:#FFFFFF; padding:10px; border-radius:14px }
+.qr svg rect, .qr svg path { shape-rendering:crispEdges }
+.link-box { font-size:12.5px; color:var(--muted); word-break:break-all; background:var(--soft); border-radius:10px; padding:8px 10px }
+a.btn { text-decoration:none; padding:6px 12px; font-size:13px }
+.native .web-only { display:none !important }
+.ai-out { background:var(--soft); border-radius:12px; padding:12px 14px; white-space:pre-wrap; line-height:1.55 }
+.idea { border:1.5px solid var(--line); border-radius:14px; padding:12px 14px; display:grid; gap:8px }
+.idea .tone { font-size:12px; letter-spacing:.05em; text-transform:uppercase; color:var(--muted); font-weight:700 }
+.idea .row { display:flex; flex-wrap:wrap; gap:6px }
+.idea .row a, .idea .row button { padding:5px 11px; font-size:13px }
+.topics { margin:0; padding-left:20px; display:grid; gap:8px }
+.busy { color:var(--muted); display:flex; gap:10px; align-items:center }
+.busy::before { content:""; width:14px; height:14px; border-radius:50%; border:2.5px solid var(--line); border-top-color:var(--accent); animation:spin 0.9s linear infinite }
+@keyframes spin { to { transform:rotate(360deg) } }
+@media (prefers-reduced-motion: reduce) { .busy::before { animation:none } }
+.tip { margin:0; border-left:3px solid var(--pollen); padding:8px 12px; background:var(--soft); border-radius:0 10px 10px 0 }
+.tip b { display:block; font-size:12px; letter-spacing:.05em; text-transform:uppercase; color:var(--muted) }
+/* ---------- app shell: tabs, views, floating add ---------- */
+header.top .summary { color:var(--ink); font-size:16px; max-width:60ch }
+.tabs { display:flex; gap:6px; flex-wrap:wrap }
+.tabs button { display:inline-flex; align-items:center; gap:8px; padding:8px 16px; border-color:transparent; background:transparent; color:var(--muted) }
+.tabs button:hover { color:var(--ink); background:var(--soft) }
+.tabs button[aria-current="page"] { background:var(--surface); border-color:var(--line); color:var(--ink) }
+.tabs svg { width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round }
+.view { display:grid; gap:24px; min-width:0 }
+.settings-grid { columns:3 300px; column-gap:16px }
+.settings-grid > * { break-inside:avoid; margin-bottom:16px }
+.about h3 { color:var(--ink) }
+/* the daily summary, examples banner and add button belong to the Today and Garden tabs */
+:root[data-tab="jardin"] #summary, :root[data-tab="reglages"] #summary,
+:root[data-tab="jardin"] #demoBanner, :root[data-tab="reglages"] #demoBanner, :root[data-tab="reglages"] .fab { display:none !important }
+.settings-grid .side p { margin:0 }
+.about { display:grid; gap:8px; color:var(--muted); font-size:14px }
+.about a { color:var(--accent) }
+.banner.compact { padding:8px 8px 8px 14px; font-size:14px }
+.banner.compact button { padding:6px 12px; font-size:13px }
+.fab { display:none }
+.sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0 }
+.sheet:focus { outline:none }
+button.danger-text { color:var(--crit) } button.danger-text:hover { color:var(--crit); background:var(--crit-bg) }
+.sheet > .sheet-foot { position:sticky; bottom:calc(-24px - env(safe-area-inset-bottom, 0px)); z-index:2; background:var(--surface);
+  margin-inline:-20px; padding:12px 20px calc(24px + env(safe-area-inset-bottom, 0px)); border-top:1px solid var(--line); margin-bottom:calc(-24px - env(safe-area-inset-bottom, 0px)) }
+details.edit { border:1.5px solid var(--line); border-radius:14px; padding:12px 14px }
+details.edit > summary { cursor:pointer; font-weight:700; display:flex; flex-wrap:wrap; gap:4px 10px; align-items:baseline }
+details.edit[open] > summary { margin-bottom:12px }
+.sheet.new { grid-template-areas:none }
+.sheet.new > .sheet-head { order:-2 } .sheet.new > #pEdit { order:-1; border:0; padding:0 } .sheet.new > #pEdit > summary { display:none }
+@media (max-width: 699px) {
+  .wrap { padding-block:16px calc(108px + env(safe-area-inset-bottom, 0px)); gap:20px }
+  h1 { font-size:32px }
+  .desk-only { display:none !important }
+  .tabs { position:fixed; left:0; right:0; bottom:0; z-index:40; display:grid; grid-template-columns:repeat(3, 1fr); gap:0;
+    background:var(--surface); border-top:1px solid var(--line);
+    padding:6px max(8px, env(safe-area-inset-right, 0px)) calc(6px + env(safe-area-inset-bottom, 0px)) max(8px, env(safe-area-inset-left, 0px)) }
+  .tabs button { flex-direction:column; gap:3px; padding:6px 4px; border-radius:12px; font-size:12px; border:0 }
+  .tabs button[aria-current="page"] { background:var(--soft); color:var(--accent) }
+  .tabs svg { width:24px; height:24px }
+  .fab { display:grid; place-items:center; position:fixed; z-index:41; width:58px; height:58px; padding:0; border-radius:18px; font-size:30px; font-weight:400;
+    right:max(16px, env(safe-area-inset-right, 0px)); bottom:calc(84px + env(safe-area-inset-bottom, 0px));
+    background:var(--accent); border-color:var(--accent); color:var(--accent-ink); box-shadow:var(--shadow) }
+  .ov .sheet { max-height:calc(100% - 24px - env(safe-area-inset-top, 0px)) }
+}
+.ai-btn::before { content:"✦"; color:var(--pollen); font-size:13px }
+</style>
+</head>
+<body>
+<main class="wrap">
+  <header class="top">
+    <div class="t">
+      <span class="label" id="todayLabel">Carnet de liens</span>
+      <h1>Cercle</h1>
+      <p class="summary" id="summary"></p>
+    </div>
+    <div class="actions">
+      <button class="primary desk-only" id="btnAdd" type="button">+ Ajouter quelqu'un</button>
+      <button id="btnInstall" type="button" hidden>Installer l'app</button>
+    </div>
+  </header>
+
+  <nav class="tabs" id="tabs" aria-label="Sections">
+    <button type="button" data-tab="today" aria-current="page"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M4.6 4.6l1.4 1.4M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4L6 18M18 6l1.4-1.4"/></svg><span>Aujourd'hui</span></button>
+    <button type="button" data-tab="jardin" aria-current="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20v-8"/><path d="M12 12c0-4 3-6.5 7.5-6.5 0 4-3 6.5-7.5 6.5z"/><path d="M12 14.5c0-3.2-2.6-5.5-6.5-5.5 0 3.2 2.6 5.5 6.5 5.5z"/><path d="M7.5 20.5h9"/></svg><span>Jardin</span></button>
+    <button type="button" data-tab="reglages" aria-current="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6.5h9M17 6.5h3M4 12h3M11 12h9M4 17.5h11M19 17.5h1"/><circle cx="15" cy="6.5" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="17.5" r="2"/></svg><span>Réglages</span></button>
+  </nav>
+
+  <div class="banner compact" id="demoBanner" hidden>
+    <p><b>Exemples</b> · <span id="demoCount"></span> personnes fictives pour découvrir. Ajoute tes proches, puis efface-les.</p>
+    <button id="btnClearDemo" type="button">Effacer</button>
+  </div>
+  <div class="banner" id="iosBanner" hidden>
+    <p><b>Installe Cercle sur ton iPhone :</b> dans Safari, touche Partager puis « Sur l'écran d'accueil ».</p>
+    <button id="btnIosHide" type="button">Compris</button>
+  </div>
+
+  <section class="view" data-view="today">
+  <div class="top-grid">
+    <section class="col" aria-labelledby="hWeek">
+      <div class="sec-head"><h2 id="hWeek">À recontacter cette semaine</h2><span class="muted small" id="weekCount"></span></div>
+      <div class="cards" id="cards"></div>
+    </section>
+    <aside class="col">
+      <div class="side">
+        <h3>Anniversaires</h3>
+        <ul class="bd-list" id="bdays"></ul>
+      </div>
+      <div class="side">
+        <h3>Ton cercle en ce moment</h3>
+        <div class="meter" id="meter" aria-hidden="true"></div>
+        <div class="stats">
+          <div class="stat"><span class="v num" id="sHealthy">–</span><span class="muted small">liens bien entretenus</span></div>
+          <div class="stat"><span class="v num" id="s30">–</span><span class="muted small">échanges sur 30 jours</span></div>
+          <div class="stat"><span class="v num" id="sStreak">–</span><span class="muted small">semaines d'affilée</span></div>
+        </div>
+      </div>
+    </aside>
+  </div>
+  </section>
+
+  <section class="view" data-view="jardin" hidden aria-labelledby="hGarden">
+  <section class="col">
+    <div class="sec-head"><h2 id="hGarden">Ton jardin</h2><span class="muted small">Plus tu prends des nouvelles, plus la plante est en forme.</span></div>
+    <div class="filters" id="filters" role="group" aria-label="Filtrer par cercle"></div>
+    <div id="garden" class="col"></div>
+  </section>
+
+  <p class="foot">Chaque personne a un rythme (toutes les semaines, tous les mois…). La plante fleurit quand tu es dans les temps, se dessèche quand le contact dépasse ce rythme, puis fane au-delà d'une fois et demie.</p>
+  </section>
+
+  <section class="view" data-view="reglages" hidden aria-labelledby="hSettings">
+    <h2 id="hSettings" class="sr-only">Réglages</h2>
+    <div class="settings-grid">
+      <div class="side">
+        <h3>Synchronisation</h3>
+        <p class="src-st" id="syncState">Désactivée : tes données restent sur cet appareil.</p>
+        <div><button type="button" id="btnSync">Configurer</button></div>
+      </div>
+      <div class="side">
+        <h3>Assistant IA</h3>
+        <p class="src-st" id="aiState">Désactivé</p>
+        <div class="actions"><button type="button" class="ai-btn" id="btnAiAsk">Demander à mon cercle</button><button type="button" class="ghost" id="btnAiCfg">Réglages</button></div>
+      </div>
+      <div class="side">
+        <h3>Suivi automatique</h3>
+        <ul class="src-list" id="srcList"></ul>
+        <p class="muted small" id="srcNote"></p>
+        <div hidden><button id="btnWA" type="button"></button><button id="btnPhone" type="button"></button><span id="stWA"></span><span id="stPhone"></span></div>
+      </div>
+      <div class="side">
+        <h3>Tes données</h3>
+        <p class="muted small">Importe tes contacts pour démarrer vite. Garde une sauvegarde de temps en temps, surtout sans synchronisation.</p>
+        <div class="actions"><button id="btnContacts" type="button">Importer mes contacts</button><button id="btnExport" type="button">Sauvegarder</button><button id="btnImport" type="button">Restaurer</button></div>
+      </div>
+      <div class="side about">
+        <h3>Comment ça marche</h3>
+        <p>Les amitiés ne s'arrêtent presque jamais d'un coup : elles s'espacent sans qu'on le voie. Chaque personne a un rythme ; Cercle te dit qui appeler, quoi lui demander et quand fêter son anniversaire.</p>
+        <p>Tes données restent sur tes appareils. Si tu actives la synchronisation, elles passent par un serveur à Paris et ne sont lisibles qu'avec ton code secret.</p>
+        <p><a href="https://github.com/Nooreyni/cercle" target="_blank" rel="noopener">Code source et aide</a> · <a href="https://github.com/Nooreyni/cercle/blob/main/docs/IA.md" target="_blank" rel="noopener">Brancher une IA</a></p>
+      </div>
+    </div>
+  </section>
+</main>
+<button class="fab" type="button" data-act="add" aria-label="Ajouter quelqu'un">+</button>
+
+<!-- Log contact -->
+<div class="ov" id="ovLog" hidden>
+  <div class="sheet" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="logTitle">
+    <div class="sheet-head"><div class="who" id="logWho"></div><button class="ghost" data-close type="button">Fermer</button></div>
+    <div class="field"><span class="lb">Comment ?</span><div class="seg" id="logType"></div></div>
+    <div class="form">
+      <div class="field"><label for="logDate">Quand</label><input type="date" id="logDate"></div>
+      <div class="field full"><label for="logNote">De quoi vous avez parlé</label><textarea id="logNote" rows="3" placeholder="ex. Il change de boulot en janvier, sa fille entre au CP"></textarea><small>Ça t'aidera à relancer la conversation la prochaine fois. Tu peux dicter en vrac et laisser l'IA mettre en forme.</small>
+        <div class="actions"><button type="button" class="ghost ai-btn" id="btnAiTidy">Mettre en forme avec l'IA</button></div>
+        <p class="muted small" id="aiTidyInfo" hidden></p></div>
+    </div>
+    <div class="field" id="logAsksWrap"><span class="lb">Tu voulais lui demander</span><ul class="asks" id="logAsks"></ul><small>Coche ce dont vous avez parlé.</small></div>
+    <div class="field"><label for="logNewAsk">À lui demander la prochaine fois</label>
+      <div class="addrow"><input id="logNewAsk" placeholder="ex. Comment s'est passé l'entretien ?"><button type="button" id="logAddAsk">Ajouter</button></div>
+      <ul class="asks" id="logNewAsks"></ul></div>
+    <div class="sheet-foot"><button class="ghost" data-close type="button">Annuler</button><button class="primary" id="btnLogSave" type="button">Enregistrer</button></div>
+  </div>
+</div>
+
+<!-- Person sheet -->
+<div class="ov" id="ovPerson" hidden>
+  <div class="sheet" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="pTitle">
+    <div class="sheet-head"><div class="who" id="pWho"></div><button class="ghost" data-close type="button">Fermer</button></div>
+    <div class="row actions" id="pQuick"></div>
+    <div class="field" id="pAsksWrap"><span class="lb">À lui demander</span><ul class="asks" id="pAsks"></ul>
+      <div class="addrow"><input id="pNewAsk" placeholder="Ajouter une question"><button type="button" id="pAddAsk">Ajouter</button></div></div>
+    <div class="field" id="pNotesWrap"><label for="p_notes" class="lb">À retenir</label><textarea id="p_notes" name="notes" form="pForm" rows="3" placeholder="Prénoms des enfants, ce qui compte pour elle ou lui, ce qu'il traverse…"></textarea></div>
+    <div class="field" id="pHistWrap"><span class="lb">Historique</span><ul class="timeline" id="pHist"></ul></div>
+    <div class="field" id="pSrcWrap"><span class="lb">Suivi automatique</span><div id="pSrc"></div></div>
+    <details class="edit" id="pEdit"><summary>Modifier la fiche <span class="muted small">nom, cercle, rythme, anniversaire, coordonnées</span></summary>
+    <form class="form" id="pForm" novalidate>
+      <div class="field full"><label for="p_name">Prénom ou surnom *</label><input id="p_name" name="name" required autocomplete="off"></div>
+      <div class="field"><label for="p_circle">Cercle</label><select id="p_circle" name="circle"></select></div>
+      <div class="field"><label for="p_freq">Rythme souhaité</label><select id="p_freq" name="freq"></select></div>
+      <div class="field"><span class="lb">Anniversaire</span>
+        <div class="inline"><select id="p_bd_d" name="bdDay" aria-label="Jour"></select><select id="p_bd_m" name="bdMonth" aria-label="Mois"></select><input id="p_bd_y" name="bdYear" type="number" min="1900" max="2100" placeholder="Année" inputmode="numeric" aria-label="Année (facultatif)"></div></div>
+      <div class="field"><label for="p_last">Dernier contact (si tu t'en souviens)</label><input id="p_last" name="lastSeed" type="date"><small>Sert seulement si aucun échange n'est encore noté.</small></div>
+      <div class="field"><label for="p_phones">Téléphones</label><input id="p_phones" name="phones" inputmode="tel" autocomplete="off" placeholder="06 12 34 56 78"><small>Pour reconnaître ses appels et SMS. Sépare par une virgule.</small></div>
+      <div class="field"><label for="p_emails">E-mails</label><input id="p_emails" name="emails" inputmode="email" autocomplete="off" placeholder="prenom@exemple.fr"><small>Pour reconnaître vos rendez-vous dans l'agenda.</small></div>
+    </form>
+    </details>
+    <p class="err" id="pErr" hidden></p>
+    <div class="sheet-foot">
+      <button class="ghost danger-text" id="btnPDelete" type="button" hidden>Retirer</button><span></span>
+      <div class="actions"><button class="ghost" data-close type="button">Annuler</button><button class="primary" id="btnPSave" type="button">Enregistrer</button></div>
+    </div>
+  </div>
+</div>
+
+<!-- Restore -->
+<div class="ov" id="ovImport" hidden>
+  <div class="sheet" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="impTitle">
+    <div class="sheet-head"><h2 id="impTitle">Restaurer une sauvegarde</h2><button class="ghost" data-close type="button">Fermer</button></div>
+    <p class="muted">Choisis un fichier créé avec « Sauvegarder ». Les personnes déjà présentes avec le même identifiant sont mises à jour, les autres sont ajoutées.</p>
+    <input type="file" id="impFile" accept=".json,application/json,text/plain" aria-label="Fichier de sauvegarde">
+    <textarea id="impText" rows="5" placeholder="…ou colle le contenu ici" aria-label="Contenu de la sauvegarde"></textarea>
+    <p class="muted small" id="impInfo"></p>
+    <div class="sheet-foot"><button class="ghost" data-close type="button">Annuler</button><button class="primary" id="btnImpGo" type="button" disabled>Restaurer</button></div>
+  </div>
+</div>
+
+<!-- Export fallback -->
+<div class="ov" id="ovExport" hidden>
+  <div class="sheet" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="expTitle">
+    <div class="sheet-head"><h2 id="expTitle">Ta sauvegarde</h2><button class="ghost" data-close type="button">Fermer</button></div>
+    <p class="muted">Le téléchargement n'est pas disponible ici. Copie ce texte et garde-le dans un fichier ou une note.</p>
+    <textarea id="expText" rows="10" aria-label="Contenu de la sauvegarde" style="font-family:ui-monospace,Menlo,monospace;font-size:12px"></textarea>
+    <div class="sheet-foot"><span></span><button class="primary" id="btnExpCopy" type="button">Copier</button></div>
+  </div>
+</div>
+
+<!-- Contacts import -->
+<div class="ov" id="ovContacts" hidden>
+  <div class="sheet" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="ctTitle">
+    <div class="sheet-head"><div><span class="label">Import</span><h2 id="ctTitle">Importer mes contacts</h2></div><button class="ghost" data-close type="button">Fermer</button></div>
+    <details class="how" id="ctHow" open><summary>Récupérer le fichier de tes contacts (1 minute)</summary><ol>
+      <li><b>iPhone</b> : app Contacts › « Listes » en haut à gauche › appui long sur « Tous les contacts » › Exporter. Tu obtiens un fichier .vcf.</li>
+      <li><b>Android</b> : app Contacts › Corriger et gérer › Exporter vers un fichier (.vcf).</li>
+      <li><b>Google Contacts</b> sur ordinateur : contacts.google.com › Exporter › vCard ou CSV Google.</li>
+    </ol></details>
+    <p class="privacy">Les contacts sont lus sur cet appareil. Seules les personnes que tu coches sont enregistrées.</p>
+    <div class="actions" id="ctNativeRow" hidden><button class="primary" id="btnCtNative" type="button">Lire les contacts du téléphone</button></div>
+    <input type="file" id="ctFile" accept=".vcf,.vcard,.csv,text/vcard,text/x-vcard,text/csv" multiple aria-label="Fichier de contacts">
+    <div class="toolbar" id="ctTools" hidden>
+      <input type="search" id="ctSearch" placeholder="Chercher un nom" aria-label="Chercher un contact">
+      <button type="button" id="ctAll">Tout cocher</button><button type="button" id="ctNone">Tout décocher</button>
+      <span class="muted small" id="ctCount"></span>
+    </div>
+    <ul class="pick" id="ctList" hidden></ul>
+    <p class="muted small" id="ctInfo"></p>
+    <div class="sheet-foot"><button class="ghost" data-close type="button">Annuler</button><button class="primary" id="btnCtGo" type="button" disabled>Ajouter la sélection</button></div>
+  </div>
+</div>
+
+<!-- WhatsApp import -->
+<div class="ov" id="ovWA" hidden>
+  <div class="sheet" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="waTitle">
+    <div class="sheet-head"><div><span class="label">Suivi</span><h2 id="waTitle">Importer des discussions WhatsApp</h2></div><button class="ghost" data-close type="button">Fermer</button></div>
+    <details class="how" open><summary>Exporter une discussion (30 secondes chacune)</summary><ol>
+      <li><b>iPhone</b> : ouvre la discussion › touche le nom en haut › Exporter la discussion › Sans médias › Enregistrer dans Fichiers.</li>
+      <li><b>Android</b> : ouvre la discussion › ⋮ › Plus › Exporter la discussion › Sans médias › enregistre le fichier.</li>
+      <li>Tu peux choisir plusieurs fichiers d'un coup (.txt ou .zip). Refais-le de temps en temps pour garder Cercle à jour.</li>
+    </ol></details>
+    <p class="privacy">Le fichier est lu dans ton navigateur. Cercle ne garde que les dates et le nombre de messages, jamais leur contenu.</p>
+    <input type="file" id="waFile" accept=".txt,.zip,text/plain,application/zip" multiple aria-label="Discussions WhatsApp exportées">
+    <ul class="pick" id="waList" hidden></ul>
+    <p class="muted small" id="waInfo"></p>
+    <div class="sheet-foot"><button class="ghost" data-close type="button">Annuler</button><button class="primary" id="btnWaGo" type="button" disabled>Mettre à jour</button></div>
+  </div>
+</div>
+
+<!-- Calls & SMS import -->
+<div class="ov" id="ovPhone" hidden>
+  <div class="sheet" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="phTitle">
+    <div class="sheet-head"><div><span class="label">Suivi</span><h2 id="phTitle">Importer appels et SMS</h2></div><button class="ghost" data-close type="button">Fermer</button></div>
+    <details class="how" open><summary>Récupérer ton journal d'appels (Android)</summary><ol>
+      <li>Installe l'app gratuite <b>SMS Backup &amp; Restore</b> (SyncTech) depuis le Play Store.</li>
+      <li>Lance une sauvegarde en cochant <b>Appels</b> (et <b>SMS</b> si tu veux).</li>
+      <li>Choisis ici le ou les fichiers <code>calls-….xml</code> et <code>sms-….xml</code>.</li>
+      <li><b>iPhone</b> : Apple ne permet pas d'exporter le journal d'appels. Utilise WhatsApp, Gmail ou « C'est fait ».</li>
+    </ol></details>
+    <p class="privacy">Les numéros sont comparés à ceux de tes fiches. Cercle ne garde que les dates et le nombre d'échanges.</p>
+    <input type="file" id="phFile" accept=".xml,text/xml,application/xml" multiple aria-label="Sauvegarde appels et SMS">
+    <ul class="pick" id="phList" hidden></ul>
+    <p class="muted small" id="phInfo"></p>
+    <div class="sheet-foot"><button class="ghost" data-close type="button">Annuler</button><button class="primary" id="btnPhGo" type="button" disabled>Mettre à jour</button></div>
+  </div>
+</div>
+
+<!-- Sync settings -->
+<div class="ov" id="ovSync" hidden>
+  <div class="sheet" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="syTitle">
+    <div class="sheet-head"><div><span class="label">Tes appareils</span><h2 id="syTitle">Synchronisation</h2></div><button class="ghost" data-close type="button">Fermer</button></div>
+    <div id="syOff" class="col">
+      <p>Retrouve ton cercle sur ton téléphone Android, ton iPhone et ton ordinateur. Pas de compte ni de mot de passe : un code secret relie tes appareils.</p>
+      <div class="actions"><button class="primary" id="btnSyCreate" type="button">Activer sur cet appareil</button></div>
+      <div class="field"><label for="syJoinKey">Déjà activée sur un autre appareil ? Colle ton code ou ton lien</label>
+        <div class="addrow"><input id="syJoinKey" autocomplete="off" autocapitalize="off" spellcheck="false"><button id="btnSyJoin" type="button">Relier</button></div></div>
+      <p class="err" id="syErr" hidden></p>
+      <p class="privacy">Les exemples sont effacés à l'activation. Tes données passent en HTTPS par un serveur Supabase à Paris et ne sont lisibles qu'avec ton code.</p>
+    </div>
+    <div id="syOn" class="col" hidden>
+      <p>Pour ajouter un appareil, scanne ce QR code avec son appareil photo, ou ouvre le lien dessus. Dans l'app Android, colle le code dans Synchronisation.</p>
+      <div class="qr" id="syQr"></div>
+      <div class="link-box" id="syLink"></div>
+      <div class="field"><label for="syKey">Ton code</label><div class="addrow"><input id="syKey" readonly><button id="btnSyCopy" type="button">Copier</button></div><small>Garde-le pour toi : il donne accès à ton cercle.</small></div>
+      <details class="how" id="syMcp"><summary>Brancher une IA sur ton cercle (Claude, ChatGPT…)</summary>
+        <p>Avec cette adresse, une IA peut lire ton cercle et y noter tes échanges : « qui dois-je appeler ? », « note que j'ai vu Karim, il a eu une promotion ».</p>
+        <div class="addrow"><input id="syMcpUrl" readonly aria-label="Adresse du serveur MCP"><button id="btnSyMcpCopy" type="button">Copier</button></div>
+        <ol>
+          <li><b>Claude</b> (claude.ai, appli mobile ou de bureau) : Paramètres › Connecteurs › Ajouter un connecteur personnalisé › colle l'adresse.</li>
+          <li><b>ChatGPT</b> : active le mode développeur des connecteurs, puis ajoute un serveur MCP avec cette adresse, sans authentification (les menus changent souvent : cherche « connecteur » dans les paramètres).</li>
+          <li><b>IA locale</b> (LM Studio, Claude Code, Cursor…) : voir docs/IA.md dans le dépôt pour la version qui tourne sur ta machine.</li>
+        </ol>
+        <p class="privacy">Cette adresse contient ton code secret : ne la partage qu'avec tes propres outils.</p>
+      </details>
+      <div class="sheet-foot"><button class="danger" id="btnSyOff" type="button">Désactiver sur cet appareil</button><button class="primary" id="btnSyNow" type="button">Synchroniser maintenant</button></div>
+    </div>
+  </div>
+</div>
+
+<!-- Join from a pairing link -->
+<div class="ov" id="ovJoin" hidden>
+  <div class="sheet" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="jnTitle">
+    <div class="sheet-head"><div><span class="label">Synchronisation</span><h2 id="jnTitle">Relier cet appareil à ton cercle ?</h2></div><button class="ghost" data-close type="button">Fermer</button></div>
+    <p>Tu as ouvert un lien de synchronisation. Cet appareil va récupérer ton cercle et rester à jour automatiquement. Les exemples présents ici seront effacés.</p>
+    <input type="hidden" id="jnKey">
+    <div class="sheet-foot"><button class="ghost" data-close type="button">Annuler</button><button class="primary" id="btnJoinGo" type="button">Relier</button></div>
+  </div>
+</div>
+
+<!-- Suggestions (Android) -->
+<div class="ov" id="ovSuggest" hidden>
+  <div class="sheet" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="sgTitle">
+    <div class="sheet-head"><div><span class="label">Suggestions</span><h2 id="sgTitle">Tu échanges souvent avec…</h2></div><button class="ghost" data-close type="button">Fermer</button></div>
+    <p class="muted">Ces personnes ne sont pas encore dans ton cercle. Coche celles que tu veux suivre.</p>
+    <ul class="pick" id="sgList"></ul>
+    <div class="sheet-foot"><button class="ghost" data-close type="button">Plus tard</button><button class="primary" id="btnSgGo" type="button" disabled>Ajouter</button></div>
+  </div>
+</div>
+
+<!-- Assistant settings -->
+<div class="ov" id="ovAiCfg" hidden>
+  <div class="sheet" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="aiCfgTitle">
+    <div class="sheet-head"><div><span class="label">Assistant</span><h2 id="aiCfgTitle">Réglages de l'IA</h2></div><button class="ghost" data-close type="button">Fermer</button></div>
+    <div class="field"><span class="lb">Moteur</span>
+      <div class="seg" id="aiProv">
+        <button type="button" data-p="off">Désactivé</button>
+        <button type="button" data-p="claude">Claude</button>
+        <button type="button" data-p="local">IA locale</button>
+        <button type="button" data-p="openai">Autre service</button>
+        <button type="button" data-p="chrome" id="aiProvChrome" hidden>IA de Chrome</button>
+      </div></div>
+    <div class="form">
+      <div class="field full" data-for="claude openai local"><label for="aiKey" id="aiKeyLabel">Clé API</label><input id="aiKey" type="password" autocomplete="off" spellcheck="false"><small id="aiKeyHint"></small></div>
+      <div class="field full" data-for="claude"><label for="aiModelClaude">Modèle</label><select id="aiModelClaude"></select></div>
+      <div class="field full" data-for="local openai"><label for="aiBase">Adresse du serveur</label><input id="aiBase" autocomplete="off" spellcheck="false" inputmode="url"><div class="seg" id="aiPresets"></div></div>
+      <div class="field full" data-for="local openai"><label for="aiModel">Nom du modèle</label><input id="aiModel" autocomplete="off" spellcheck="false" placeholder="qwen3, llama3.2, mistral-small…"></div>
+    </div>
+    <details class="how" id="aiHelp"><summary>Comment faire</summary><div id="aiHelpBody"></div></details>
+    <p class="privacy" id="aiPrivacy"></p>
+    <p class="muted small" id="aiTestOut"></p>
+    <div class="sheet-foot"><button type="button" id="btnAiTest">Tester</button><button class="primary" id="btnAiSave" type="button">Enregistrer</button></div>
+  </div>
+</div>
+
+<!-- Ask the circle -->
+<div class="ov" id="ovAsk" hidden>
+  <div class="sheet" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="askTitle">
+    <div class="sheet-head"><div><span class="label">Assistant</span><h2 id="askTitle">Demander à mon cercle</h2></div><button class="ghost" data-close type="button">Fermer</button></div>
+    <div class="seg" id="askChips">
+      <button type="button">Qui ai-je le plus négligé ?</button>
+      <button type="button">Prépare ma semaine en 3 actions</button>
+      <button type="button">Quels anniversaires arrivent ?</button>
+    </div>
+    <textarea id="askQ" rows="3" placeholder="ex. Qui n'ai-je pas vu depuis l'été ?" aria-label="Ta question"></textarea>
+    <div class="ai-out" id="askOut" hidden></div>
+    <p class="muted small" id="askInfo"></p>
+    <div class="sheet-foot"><button class="ghost" data-close type="button">Fermer</button><button class="primary" id="btnAskGo" type="button">Demander</button></div>
+  </div>
+</div>
+
+<!-- Assistant results (message ideas, call prep) -->
+<div class="ov" id="ovAiOut" hidden>
+  <div class="sheet" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="aoTitle">
+    <div class="sheet-head"><div><span class="label" id="aoLabel">Assistant</span><h2 id="aoTitle"></h2></div><button class="ghost" data-close type="button">Fermer</button></div>
+    <div id="aoBody" class="col"></div>
+    <div class="sheet-foot"><span class="muted small" id="aoEngine"></span><button type="button" id="btnAoAgain">Autres idées</button></div>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status" hidden></div>
+
+<script src="vendor/jszip.min.js"></script>
+<script src="vendor/qrcode.js"></script>
+<script type="module" src="app.js"></script>
+</body>
+</html>
