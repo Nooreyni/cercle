@@ -25,10 +25,10 @@ img { max-width:100% }
 
 /* Layout: a windowsill. "This week" cards and side notes up top, then the garden of people grouped by circle. */
 :root {
-  --bg:#EEF2EA; --surface:#FBFCF8; --ink:#1D2A21; --muted:#5E6D61; --line:#D3DBCF; --soft:#E3EADD;
+  --bg:#EEF2EA; --surface:#FBFCF8; --ink:#1D2A21; --muted:#56645A; --line:#D3DBCF; --soft:#E3EADD;
   --accent:#2F6B45; --accent-ink:#FFFFFF; --pollen:#E0A526;
   --leaf:#3F8F55; --leaf-2:#5DB06F; --leaf-dry:#B9A23E; --dead:#9A7B55; --pot:#B8714A; --pot-rim:#9E5E3B; --petal:#F2C94C; --petal-c:#D9822B;
-  --warn:#9B6A00; --warn-bg:#FFF0CC; --crit:#A63A2A; --crit-bg:#F8E1DC; --good:#2F6B45; --good-bg:#DDEFE1;
+  --warn:#8A5D00; --warn-bg:#FFF0CC; --crit:#A63A2A; --crit-bg:#F8E1DC; --good:#2F6B45; --good-bg:#DDEFE1;
   --shadow:0 12px 32px rgba(29,42,33,.18);
   --f-display:"Bricolage Grotesque", "Avenir Next", "Segoe UI", sans-serif;
   --f-body:"Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -238,6 +238,7 @@ header.top .summary { color:var(--ink); font-size:16px; max-width:60ch }
 .banner.compact { padding:8px 8px 8px 14px; font-size:14px }
 .banner.compact button { padding:6px 12px; font-size:13px }
 .fab { display:none }
+.sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0 }
 .sheet:focus { outline:none }
 button.danger-text { color:var(--crit) } button.danger-text:hover { color:var(--crit); background:var(--crit-bg) }
 .sheet > .sheet-foot { position:sticky; bottom:calc(-24px - env(safe-area-inset-bottom, 0px)); z-index:2; background:var(--surface);
@@ -266,7 +267,7 @@ details.edit[open] > summary { margin-bottom:12px }
 </style>
 </head>
 <body>
-<div class="wrap">
+<main class="wrap">
   <header class="top">
     <div class="t">
       <span class="label" id="todayLabel">Carnet de liens</span>
@@ -328,7 +329,8 @@ details.edit[open] > summary { margin-bottom:12px }
   <p class="foot">Chaque personne a un rythme (toutes les semaines, tous les mois…). La plante fleurit quand tu es dans les temps, se dessèche quand le contact dépasse ce rythme, puis fane au-delà d'une fois et demie.</p>
   </section>
 
-  <section class="view" data-view="reglages" hidden aria-label="Réglages">
+  <section class="view" data-view="reglages" hidden aria-labelledby="hSettings">
+    <h2 id="hSettings" class="sr-only">Réglages</h2>
     <div class="settings-grid">
       <div class="side">
         <h3>Synchronisation</h3>
@@ -359,7 +361,7 @@ details.edit[open] > summary { margin-bottom:12px }
       </div>
     </div>
   </section>
-</div>
+</main>
 <button class="fab" type="button" data-act="add" aria-label="Ajouter quelqu'un">+</button>
 
 <!-- Log contact -->
